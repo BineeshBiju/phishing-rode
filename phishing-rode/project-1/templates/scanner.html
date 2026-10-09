@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Cyber Scape | URL Scanner{% endblock %}
+{% block content %}
+<section class="page-head"><div class="eyebrow">URL CHECK / 01</div><h1>Check a website link</h1><p>Use the full URL you received. We check it against live threat intelligence without opening the destination.</p></section>
+<section class="scanner-box">
+  <div class="section-label"><label for="urlInput">Destination URL</label><span>HTTP or HTTPS</span></div>
+  <div class="input-row"><input id="urlInput" type="url" placeholder="https://example.com/login" autocomplete="url"><button class="btn primary" id="checkBtn">Check link <span aria-hidden="true">→</span></button></div>
+  <p class="field-help">Do not include private passwords or personal information in a URL.</p>
+  <div id="scanResult" class="result hidden"></div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/scanner.js') }}"></script>{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Cyber Scape | Admin Dashboard{% endblock %}
+{% block content %}
+<section class="page-head admin-header">
+  <div>
+    <div class="eyebrow">MODULE 04</div>
+    <h1>Security Dashboard</h1>
+    <p>Welcome back, {{ user or 'admin' }}. Local scan history and threat statistics for the prototype.</p>
+  </div>
+  <form action="{{ url_for('logout') }}" method="get" class="logout-form">
+    <button class="btn danger" type="submit">Logout</button>
+  </form>
+</section>
+<section class="cards four">
+  <div class="metric"><span>Total Scans</span><b>{{ stats.total }}</b></div>
+  <div class="metric"><span>Safe</span><b>{{ stats.safe }}</b></div>
+  <div class="metric"><span>Suspicious</span><b>{{ stats.suspicious }}</b></div>
+  <div class="metric"><span>Blocked</span><b>{{ stats.blocked }}</b></div>
+</section>
+<section class="table-box">
+<h3>Recent Threat Activity</h3>
+<table><thead><tr><th>Destination</th><th>Source</th><th>Risk</th><th>Status</th><th>Time</th></tr></thead>
+<tbody>
+{% for x in history %}
+<tr><td>{{ x.url }}</td><td>{{ x.source }}</td><td>{{ x.score }}/100</td><td><span class="pill {{ x.status|lower }}">{{ x.status }}</span></td><td>{{ x.time }}</td></tr>
+{% else %}<tr><td colspan="5" class="empty">No scans yet. Run the URL or QR scanner.</td></tr>{% endfor %}
+</tbody></table>
+</section>
+{% endblock %}

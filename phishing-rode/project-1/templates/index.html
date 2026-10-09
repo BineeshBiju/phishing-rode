@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Cyber Scape | Home{% endblock %}
+{% block content %}
+<section class="hero overview-hero">
+  <div class="hero-copy">
+    <div class="eyebrow">CYBER SCAPE / OVERVIEW</div>
+    <h1>Know where a link leads <span>before you open it.</span></h1>
+    <p>Check a URL or scan a QR code against live threat intelligence. Results are clear, explainable, and built for a quick decision.</p>
+    <div class="actions">
+      <a class="btn primary" href="{{ url_for('scanner') }}">Check a URL <span aria-hidden="true">→</span></a>
+      <a class="btn ghost" href="{{ url_for('qr_scanner') }}">Scan a QR code <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+  <aside class="status-panel" aria-label="Service status">
+    <div class="status-panel-head"><span class="status-dot"></span><span>Protection active</span><span class="status-time">LIVE</span></div>
+    <div class="status-rule"></div>
+    <dl class="status-list">
+      <div><dt>Threat feed</dt><dd>URLhaus</dd></div>
+      <div><dt>URL checks</dt><dd>Available</dd></div>
+      <div><dt>QR decoding</dt><dd>Browser-based</dd></div>
+    </dl>
+    <p class="status-note">Your destination is checked before you decide to visit it.</p>
+  </aside>
+</section>
+<section class="cards three feature-strip">
+  <div class="card"><div class="feature-index">01</div><h3>Inspect links</h3><p>Paste the complete destination, including its protocol and path.</p></div>
+  <div class="card"><div class="feature-index">02</div><h3>Read the result</h3><p>See the source, status, risk level, and reason in one place.</p></div>
+  <div class="card"><div class="feature-index">03</div><h3>Decide with context</h3><p>Suspicious destinations are clearly marked before navigation.</p></div>
+</section>
+{% endblock %}

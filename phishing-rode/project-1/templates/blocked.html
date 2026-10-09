@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Cyber Scape | Access Blocked{% endblock %}
+{% block content %}
+<section class="block-page">
+  <div class="blocked-icon">!</div>
+  <div class="eyebrow danger-text">AUTOMATED MITIGATION</div>
+  <h1>Access Blocked</h1>
+  <p id="blockedUrl">This destination has been identified as a high-risk phishing or quishing destination by the configured threat-intelligence providers.</p>
+  <div class="block-score">RISK SCORE <strong id="blockedScore">—</strong>/100</div>
+  <a class="btn primary" href="{{ url_for('home') }}">← Return to Safety</a>
+</section>
+{% endblock %}
+{% block scripts %}<script>
+const r=JSON.parse(sessionStorage.getItem("guardResult")||"null");
+if(r){document.getElementById("blockedUrl").textContent=`Access to ${r.url} was blocked because the detected risk score is ${r.score}/100.`;document.getElementById("blockedScore").textContent=r.score;}
+</script>{% endblock %}

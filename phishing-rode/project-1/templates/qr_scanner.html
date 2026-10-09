@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Cyber Scape | QR Scanner{% endblock %}
+{% block content %}
+<section class="page-head"><div class="eyebrow">QR CHECK / 02</div><h1>Check a QR code</h1><p>Upload a screenshot or image. We decode the destination in your browser, then check the extracted link.</p></section>
+<section class="qr-layout">
+  <div class="scanner-box qr-box">
+    <div class="upload-zone" id="dropZone">
+      <div class="big-icon">QR</div><h3>Drop a QR image here</h3><p>PNG, JPG or WEBP up to 10 MB</p>
+      <input type="file" id="qrFile" accept="image/*">
+      <button class="btn ghost" onclick="document.getElementById('qrFile').click()">Choose image</button>
+    </div>
+    <div id="qrStatus" class="demo-note">No image selected.</div>
+  </div>
+  <div class="scanner-box">
+    <div class="section-label"><h3>Extracted destination</h3><span>STEP 2 OF 2</span></div>
+    <div id="qrUrl" class="url-preview">Waiting for QR scan…</div>
+    <button class="btn primary full" id="analyzeQr" disabled>Check destination <span aria-hidden="true">→</span></button>
+    <div id="qrResult" class="result hidden"></div>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script src="{{ url_for('static', filename='js/qr.js') }}"></script>
+{% endblock %}

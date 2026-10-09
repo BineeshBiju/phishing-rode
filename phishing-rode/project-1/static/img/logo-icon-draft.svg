@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!--
+    CyberScape Logo Mark
+    Two overlapping 45°-rotated squares:
+    - Back: outlined diamond (lower-left)
+    - Front: filled C-shape diamond (upper-right), open on top-right
+  -->
+
+  <!-- Back diamond — outlined, lower-left position -->
+  <path d="M26 72 L8 54 L26 36 L44 54 Z"
+        stroke="#2b3ea5" stroke-width="5.5" fill="none"
+        stroke-linejoin="miter"/>
+
+  <!-- Front C-shape — filled, upper-right position
+       A diamond with the top-right edge opened to form a C.
+       Starts at bottom, goes left (counter-clockwise), leaves a gap at top-right -->
+  <path d="M56 68
+           L38 50
+           L56 32
+           L66 42
+           L60 48
+           L56 44
+           L48 52
+           L56 60
+           L60 56
+           L66 62
+           Z"
+        fill="#2b3ea5"/>
+</svg>
+
