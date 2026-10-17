@@ -1,35 +1,86 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>{% block title %}Cyber Scape{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
 </head>
+
 <body>
-<div class="bg-grid"></div>
-<header class="nav">
-  <a class="brand" href="{{ url_for('home') }}"><span class="shield">CS</span> Cyber<span>Scape</span></a>
-  <nav>
-    <a href="{{ url_for('home') }}">Overview</a>
-    <a href="{{ url_for('scanner') }}">URL Scanner</a>
-    <a href="{{ url_for('qr_scanner') }}">QR Scanner</a>
-    {% if session.get('user') %}
-      <a href="{{ url_for('admin') }}">Admin</a>
-      <a href="{{ url_for('logout') }}">Logout</a>
-    {% else %}
-      <a href="{{ url_for('login') }}">Login</a>
-      <a href="{{ url_for('register') }}">Sign Up</a>
-    {% endif %}
-  </nav>
-</header>
-<main>{% block content %}{% endblock %}</main>
-<footer><span>Cyber Scape</span><span>Threat intelligence for everyday links</span></footer>
-<script src="{{ url_for('static', filename='js/app.js') }}"></script>
-{% block scripts %}{% endblock %}
+  <div class="bg-grid"></div>
+  <header class="nav">
+    <a class="brand brand-cyberspace" href="{{ url_for('home') }}">
+      <span class="shield">CS</span>
+      <span class="brand-cyberspace-title">CYBER<span>SPACE</span></span>
+    </a>
+    <nav>
+      <a href="{{ url_for('home') }}" class="{% if request.endpoint == 'home' %}active{% endif %}">Overview</a>
+      <a href="{{ url_for('scanner') }}" class="{% if request.endpoint == 'scanner' %}active{% endif %}">URL Scanner</a>
+      <a href="{{ url_for('qr_scanner') }}" class="{% if request.endpoint == 'qr_scanner' %}active{% endif %}">QR Scanner</a>
+      <a href="{{ url_for('email_analyzer_page') }}"
+        class="{% if request.endpoint == 'email_analyzer_page' %}active{% endif %}">AI Email Analyzer</a>
+      {% if session.get('user') %}
+      <a href="{{ url_for('dashboard') }}"
+        class="{% if request.endpoint in ['admin', 'dashboard'] or active_nav == 'dashboard' %}active{% endif %}">Dashboard</a>
+      <a href="{{ url_for('logout') }}" class="nav-logout">Logout</a>
+      {% else %}
+      <a href="{{ url_for('login') }}" class="nav-auth-link">Login</a>
+      <a href="{{ url_for('register') }}" class="nav-auth-btn">Sign In</a>
+      {% endif %}
+    </nav>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+
+  <!-- Global Auth Gate Modal for Guests -->
+  <div id="authGateModal" class="auth-gate-modal-backdrop" style="display: none;" onclick="if(event.target===this) closeAuthModal();">
+    <div class="auth-gate-modal-card">
+      <button class="auth-modal-close" onclick="closeAuthModal()" aria-label="Close modal">✕</button>
+      <div class="auth-gate-icon-badge"></div>
+      <h3 class="auth-gate-heading">Sign In to Run Live Threat Scans</h3>
+      <p class="auth-gate-subtext">
+        To protect cybersecurity telemetry resources and access deep multi-layered AI analytics, please sign in or create a free account. All scanner tools and the Threat Map Dashboard activate upon authentication.
+      </p>
+      <div class="auth-gate-features">
+        <div class="auth-feat-item">✓ AI Phishing & Spoofing Detection</div>
+        <div class="auth-feat-item">✓ Live Threat Intelligence & Geo-IP Telemetry</div>
+        <div class="auth-feat-item">✓ QR & AI Email Forensic Scans</div>
+        <div class="auth-feat-item">✓ Interactive Threat Intelligence Map & Forensic Logs</div>
+      </div>
+      <div class="auth-gate-buttons">
+        <a href="{{ url_for('login') }}" class="btn primary full auth-action-btn">Sign In to Account <span aria-hidden="true">→</span></a>
+        <a href="{{ url_for('register') }}" class="btn ghost full auth-action-btn">Create Free Account</a>
+      </div>
+    </div>
+  </div>
+
+  <footer><span>Cyber Scape</span><span>Threat intelligence for everyday links</span></footer>
+  <div id="cyberAuthBridge"
+       data-authenticated="{{ 'true' if session.get('user') else 'false' }}"
+       data-user="{{ session.get('user') or '' }}"
+       data-login-url="{{ url_for('login') }}"
+       data-register-url="{{ url_for('register') }}"
+       style="display: none;"></div>
+  <script>
+    (function () {
+      var bridge = document.getElementById("cyberAuthBridge");
+      window.CYBER_AUTH = {
+        isAuthenticated: bridge ? bridge.getAttribute("data-authenticated") === "true" : false,
+        user: bridge && bridge.getAttribute("data-user") ? bridge.getAttribute("data-user") : null,
+        loginUrl: bridge ? bridge.getAttribute("data-login-url") : "/login",
+        registerUrl: bridge ? bridge.getAttribute("data-register-url") : "/register"
+      };
+    })();
+  </script>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  {% block scripts %}{% endblock %}
 </body>
+
 </html>

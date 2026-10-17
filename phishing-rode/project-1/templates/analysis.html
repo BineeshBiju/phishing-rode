@@ -1,16 +1,27 @@
 {% extends "base.html" %}
-{% block title %}Cyber Scape | Analysis{% endblock %}
+{% block title %}Cyber Scape | Security Analysis{% endblock %}
 {% block content %}
-<section class="page-head"><div class="eyebrow">MODULE 03</div><h1>Security Analysis</h1><p>View the latest scan result.</p></section>
-<div id="analysisBox" class="scanner-box"><div class="empty">Run a URL or QR scan first.</div></div>
+<section class="page-head">
+  <div class="eyebrow">FORENSICS / 03</div>
+  <h1>Security Telemetry & Analysis</h1>
+  <p>In-depth cybersecurity forensics: AI Domain classification, Live Threat Feeds, Network Geo-IP, and Redirect Tracing.</p>
+</section>
+<div id="analysisBox" class="scanner-box">
+  <div class="empty">
+    <div style="font-size:2rem; margin-bottom:12px;">🔍︎</div>
+    <h3>No Scan Record in Current Session</h3>
+    <p style="color:var(--text-muted); margin: 8px 0 20px;">Run a URL scan or QR code inspection first to view live security telemetry.</p>
+    <a class="btn primary" href="{{ url_for('scanner') }}">Run a URL Scan ➔</a>
+  </div>
+</div>
 {% endblock %}
-{% block scripts %}<script>
-const r = JSON.parse(sessionStorage.getItem("guardResult") || "null");
-const box=document.getElementById("analysisBox");
-if(r){
- box.innerHTML=`<div class="analysis-top"><div><div class="eyebrow">DESTINATION</div><h2>${escapeHtml(r.url)}</h2></div><div class="score ${r.status.toLowerCase()}">${r.score}<small>/100</small></div></div>
- <div class="status ${r.status.toLowerCase()}">${r.status} • ${r.level}</div>
- <h3>Detection Details</h3><ul class="reasons">${r.reasons.map(x=>`<li>✓ ${escapeHtml(x)}</li>`).join("")}</ul>
- ${r.status==="MALICIOUS"?'<a class="btn danger" href="/blocked">BLOCKED — VIEW BLOCK PAGE</a>':'<a class="btn primary" href="/scanner">RUN ANOTHER SCAN</a>'}`;
-}
-</script>{% endblock %}
+{% block scripts %}
+<script>
+  const r = JSON.parse(sessionStorage.getItem("guardResult") || "null");
+  const box = document.getElementById("analysisBox");
+  if (r && box) {
+    box.innerHTML = "";
+    renderResult(r, box);
+  }
+</script>
+{% endblock %}

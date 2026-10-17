@@ -1,30 +1,144 @@
 {% extends "base.html" %}
-{% block title %}Cyber Scape | Home{% endblock %}
+{% block title %}CYBERSPACE | Threat Intelligence & Phishing Defense{% endblock %}
 {% block content %}
+{% if not session.get('user') %}
+<div class="guest-preview-banner">
+  <div class="guest-banner-left">
+    <span class="guest-banner-badge">VIEW ONLY</span>
+    <span class="guest-banner-text">Welcome to CYBERSPACE. You are exploring in preview mode. All feature modules are visible below. <a href="{{ url_for('login') }}">Sign In</a> or <a href="{{ url_for('register') }}">Create an Account</a> to run live scans and access the Dashboard.</span>
+  </div>
+  <div class="guest-banner-actions">
+    <a href="{{ url_for('login') }}" class="btn-banner-login">Sign In →</a>
+  </div>
+</div>
+{% endif %}
+
 <section class="hero overview-hero">
   <div class="hero-copy">
-    <div class="eyebrow">CYBER SCAPE / OVERVIEW</div>
+    <div class="eyebrow">CYBERSPACE / OVERVIEW</div>
     <h1>Know where a link leads <span>before you open it.</span></h1>
-    <p>Check a URL or scan a QR code against live threat intelligence. Results are clear, explainable, and built for a quick decision.</p>
+    <p>Check a URL, scan a QR code, or analyze email threats against live threat intelligence. Results are clear, explainable, and built for a quick decision.</p>
+
+    <!-- Inline Quick URL Inspect Field with Auth Gate Enforcement -->
+    <div class="hero-quick-search">
+      <div class="quick-search-box">
+        <span class="quick-search-icon">🔍︎</span>
+        <input 
+          id="quickUrlInput" 
+          type="url" 
+          class="quick-search-input font-mono" 
+          placeholder="Paste destination URL (e.g., https://example.com/login)..." 
+          autocomplete="url"
+        >
+        <button type="button" class="btn primary btn-quick-check" id="quickCheckBtn" onclick="handleHeroQuickCheck()">
+          Quick Check <span aria-hidden="true">→</span>
+        </button>
+      </div>
+    </div>
+
     <div class="actions">
-      <a class="btn primary" href="{{ url_for('scanner') }}">Check a URL <span aria-hidden="true">→</span></a>
-      <a class="btn ghost" href="{{ url_for('qr_scanner') }}">Scan a QR code <span aria-hidden="true">→</span></a>
+      <a class="btn primary" href="{{ url_for('scanner') }}">URL Scanner <span aria-hidden="true">→</span></a>
+      <a class="btn ghost" href="{{ url_for('qr_scanner') }}">QR Scanner <span aria-hidden="true">→</span></a>
+      <a class="btn ghost" href="{{ url_for('email_analyzer_page') }}">AI Email Analyzer <span aria-hidden="true">→</span></a>
     </div>
   </div>
+
   <aside class="status-panel" aria-label="Service status">
-    <div class="status-panel-head"><span class="status-dot"></span><span>Protection active</span><span class="status-time">LIVE</span></div>
+    <div class="status-panel-head">
+      <span class="status-dot"></span>
+      <span>Protection active</span>
+      <span class="status-time">LIVE</span>
+    </div>
     <div class="status-rule"></div>
     <dl class="status-list">
-      <div><dt>Threat feed</dt><dd>URLhaus</dd></div>
-      <div><dt>URL checks</dt><dd>Available</dd></div>
-      <div><dt>QR decoding</dt><dd>Browser-based</dd></div>
+      <div>
+        <dt>Threat feeds</dt>
+        <dd>URLhaus + VirusTotal</dd>
+      </div>
+      <div>
+        <dt>URL checks</dt>
+        <dd>Available</dd>
+      </div>
+      <div>
+        <dt>QR decoding</dt>
+        <dd>Live Cam & Files</dd>
+      </div>
+      <div>
+        <dt>Email forensics</dt>
+        <dd>NLP & Header SPF</dd>
+      </div>
     </dl>
-    <p class="status-note">Your destination is checked before you decide to visit it.</p>
+    <p class="status-note">Destinations are inspected before you decide to visit them.</p>
   </aside>
 </section>
-<section class="cards three feature-strip">
-  <div class="card"><div class="feature-index">01</div><h3>Inspect links</h3><p>Paste the complete destination, including its protocol and path.</p></div>
-  <div class="card"><div class="feature-index">02</div><h3>Read the result</h3><p>See the source, status, risk level, and reason in one place.</p></div>
-  <div class="card"><div class="feature-index">03</div><h3>Decide with context</h3><p>Suspicious destinations are clearly marked before navigation.</p></div>
+
+<!-- Showcase of All Features -->
+<section class="cards four feature-strip">
+  <div class="card">
+    <div class="feature-index">01</div>
+    <h3>URL Threat Scanner</h3>
+    <p>Inspect complete destinations with AI phishing score, URLhaus feed matching, Geo-IP, and redirect tracing.</p>
+    <a href="{{ url_for('scanner') }}" class="feature-card-link">Explore Scanner →</a>
+  </div>
+  <div class="card">
+    <div class="feature-index">02</div>
+    <h3>Live QR Code Scanner</h3>
+    <p>Scan physical QR codes via live webcam or upload images to decode destinations and verify threat indicators.</p>
+    <a href="{{ url_for('qr_scanner') }}" class="feature-card-link">Explore QR Tool →</a>
+  </div>
+  <div class="card">
+    <div class="feature-index">03</div>
+    <h3>AI Email & Header Tracker</h3>
+    <p>Investigate email sender spoofing, validate SPF/DKIM/DMARC headers, and analyze phishing urgency NLP.</p>
+    <a href="{{ url_for('email_analyzer_page') }}" class="feature-card-link">Explore Forensics →</a>
+  </div>
+  <div class="card">
+    <div class="feature-index">04</div>
+    <h3>Threat Intelligence Map</h3>
+    <p>Interactive geospatial telemetry map tracking worldwide attack origins and audit logs (login required).</p>
+    {% if session.get('user') %}
+    <a href="{{ url_for('dashboard') }}" class="feature-card-link">Open Dashboard →</a>
+    {% else %}
+    <a href="javascript:void(0)" onclick="openAuthModal()" class="feature-card-link" style="color: #64748b;">Sign in to Access</a>
+    {% endif %}
+  </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function handleHeroQuickCheck() {
+  const input = document.getElementById("quickUrlInput");
+  const url = (input ? input.value : "").trim();
+
+  // If user is not authenticated, show Auth Gate Modal
+  if (window.CYBER_AUTH && !window.CYBER_AUTH.isAuthenticated) {
+    openAuthModal();
+    return;
+  }
+
+  if (!url) {
+    alert("Please enter a destination URL to check.");
+    return;
+  }
+
+  // Preload and forward to scanner
+  try {
+    sessionStorage.setItem("pendingScanUrl", url);
+  } catch (e) {}
+  window.location.href = "{{ url_for('scanner') }}";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const input = document.getElementById("quickUrlInput");
+  if (input) {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleHeroQuickCheck();
+      }
+    });
+  }
+});
+</script>
 {% endblock %}

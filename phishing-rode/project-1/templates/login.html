@@ -7,20 +7,23 @@
   <p>Access the Cyber Scape admin console using your protected credentials.</p>
 
   {% if error %}
-    <div class="message-box message-error">{{ error }}</div>
+  <div class="message-box message-error">{{ error }}</div>
   {% endif %}
 
   <form class="auth-form" method="post">
     <label>
       Username, Email, or Mobile Number
-      <input type="text" name="username" placeholder="admin, admin@cyberscape.test, or +1234567890" autocomplete="username" required>
+      <input type="text" name="username" placeholder="admin, admin@cyberscape.test, or +1234567890"
+        autocomplete="username" required>
     </label>
 
     <label>
       Password
       <div class="password-wrap">
-        <input id="passwordInput" type="password" name="password" placeholder="Enter password" autocomplete="current-password" required>
-        <button type="button" class="password-toggle" data-target="passwordInput" aria-label="Show password">Show</button>
+        <input id="passwordInput" type="password" name="password" placeholder="Enter password"
+          autocomplete="current-password" required>
+        <button type="button" class="password-toggle" data-target="passwordInput"
+          aria-label="Show password">Show</button>
       </div>
     </label>
 

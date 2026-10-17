@@ -1,25 +1,141 @@
 {% extends "base.html" %}
-{% block title %}Cyber Scape | QR Scanner{% endblock %}
+{% block title %}CYBERSPACE | Check a QR Code{% endblock %}
 {% block content %}
-<section class="page-head"><div class="eyebrow">QR CHECK / 02</div><h1>Check a QR code</h1><p>Upload a screenshot or image. We decode the destination in your browser, then check the extracted link.</p></section>
-<section class="qr-layout">
-  <div class="scanner-box qr-box">
-    <div class="upload-zone" id="dropZone">
-      <div class="big-icon">QR</div><h3>Drop a QR image here</h3><p>PNG, JPG or WEBP up to 10 MB</p>
-      <input type="file" id="qrFile" accept="image/*">
-      <button class="btn ghost" onclick="document.getElementById('qrFile').click()">Choose image</button>
-    </div>
-    <div id="qrStatus" class="demo-note">No image selected.</div>
+{% if not session.get('user') %}
+<div class="guest-preview-banner">
+  <div class="guest-banner-left">
+    <span class="guest-banner-badge">VIEW ONLY</span>
+    <span class="guest-banner-text">You are viewing the QR Scanner in preview mode. <a href="{{ url_for('login') }}">Sign In</a> or <a href="{{ url_for('register') }}">Create an Account</a> to execute live scans and access the Dashboard.</span>
   </div>
-  <div class="scanner-box">
-    <div class="section-label"><h3>Extracted destination</h3><span>STEP 2 OF 2</span></div>
-    <div id="qrUrl" class="url-preview">Waiting for QR scan…</div>
-    <button class="btn primary full" id="analyzeQr" disabled>Check destination <span aria-hidden="true">→</span></button>
+  <div class="guest-banner-actions">
+    <a href="{{ url_for('login') }}" class="btn-banner-login">Sign In →</a>
+  </div>
+</div>
+{% endif %}
+<section class="page-head">
+  <div class="eyebrow">QR CHECK / 02</div>
+  <h1>Check a QR code</h1>
+  <p>Scan a QR code using your live webcam or upload an image file. We decode the destination link in your browser and verify its threat status.</p>
+</section>
+
+<section class="qr-layout">
+  <!-- Left Card: Dual Mode Input (Live Camera & File Upload) -->
+  <div class="scanner-box qr-box rounded-2xl">
+    <!-- Mode Selector / Tab Switcher -->
+    <div class="qr-mode-tabs" role="tablist">
+      <button type="button" class="qr-mode-tab active" id="tabCameraScan" onclick="switchQrMode('camera')">
+        <span class="tab-icon">📷</span> Live Camera Scan
+      </button>
+      <button type="button" class="qr-mode-tab" id="tabFileUpload" onclick="switchQrMode('upload')">
+        <span class="tab-icon">📄</span> Upload Image
+      </button>
+    </div>
+
+    <!-- Mode 1: Live Webcam Viewfinder -->
+    <div id="modeCamera" class="qr-mode-panel">
+      <div class="scanner-viewport-wrapper">
+        <div class="scanner-viewport" id="scannerViewport">
+          <!-- Live Video Feed -->
+          <video id="qrVideo" playsinline autoplay muted class="scanner-video" style="display: none;"></video>
+          <canvas id="qrCanvas" style="display: none;"></canvas>
+
+          <!-- Idle Viewport Placeholder (Shown when camera is off) -->
+          <div id="cameraIdlePlaceholder" class="camera-idle-placeholder">
+            <div class="camera-placeholder-icon">📷</div>
+            <h4>Live Webcam Viewfinder</h4>
+            <p>Click "Start Camera" to initialize your webcam for automated real-time QR detection.</p>
+            <button type="button" class="btn primary btn-sm" onclick="startCamera()">Start Camera</button>
+          </div>
+
+          <!-- Scanning Reticle (Overlayed when camera feed is active) -->
+          <div id="scannerReticle" class="scanner-reticle-overlay" style="display: none;">
+            <div class="scanner-reticle-box">
+              <span class="reticle-corner tl"></span>
+              <span class="reticle-corner tr"></span>
+              <span class="reticle-corner bl"></span>
+              <span class="reticle-corner br"></span>
+              <div class="reticle-scan-line"></div>
+            </div>
+            <div class="reticle-instruction">Align QR code within reticle frame</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Camera Controls -->
+      <div class="camera-controls-bar">
+        <button type="button" class="btn primary btn-camera-toggle" id="cameraToggleBtn" onclick="toggleCamera()">
+          <span class="btn-icon" id="cameraToggleIcon">▶</span>
+          <span id="cameraToggleText">Start Camera</span>
+        </button>
+        <div class="camera-select-wrapper">
+          <select id="cameraSelect" class="camera-select-dropdown" onchange="onCameraDeviceChanged()" title="Select Video Device">
+            <option value="">Default Camera</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Camera Status Note -->
+      <div id="cameraStatus" class="demo-note camera-status-bar">
+        <span>Ready. Position your webcam towards any QR code.</span>
+      </div>
+    </div>
+
+    <!-- Mode 2: File Upload (Existing Dropzone) -->
+    <div id="modeUpload" class="qr-mode-panel" style="display: none;">
+      <div class="upload-zone" id="dropZone" onclick="document.getElementById('qrFile').click()">
+        <div class="big-icon">QR</div>
+        <h3>Drop a QR image here</h3>
+        <p>PNG, JPG, or WEBP up to 10 MB</p>
+        <input type="file" id="qrFile" accept="image/png, image/jpeg, image/webp" onclick="event.stopPropagation()">
+        <button type="button" class="btn ghost" onclick="event.stopPropagation(); document.getElementById('qrFile').click()">Choose image</button>
+      </div>
+      <div id="qrStatus" class="demo-note">No image selected.</div>
+    </div>
+
+    <!-- Quick Sample Demo Helper -->
+    <div class="sample-qr-footer">
+      <span>Need to test without camera?</span>
+      <button type="button" class="btn-link-sample" onclick="loadSampleQrTest()">Test with sample QR destination</button>
+    </div>
+  </div>
+
+  <!-- Right Card: Extracted Destination & Scan Action -->
+  <div class="scanner-box rounded-2xl qr-right-card">
+    <div class="section-label">
+      <label for="qrDestinationInput">Extracted destination</label>
+      <span class="step-badge">STEP 2 OF 2</span>
+    </div>
+
+    <!-- Output Field (Text box displaying decoded URL) -->
+    <div class="destination-field-wrapper">
+      <input 
+        type="text" 
+        id="qrDestinationInput" 
+        class="destination-input-box font-mono" 
+        placeholder="Waiting for QR scan or upload..." 
+        value="" 
+        oninput="handleDestinationInputChange()"
+      >
+      <button type="button" class="btn-clear-dest" id="btnClearDest" onclick="clearExtractedDestination()" style="display: none;" title="Clear destination">✕</button>
+    </div>
+
+    <div class="destination-meta-info">
+      <span>Our forensic engine verifies domain spoofing, redirect hops, and phishing indicators.</span>
+    </div>
+
+    <!-- Primary Action Button (Emerald green background) -->
+    <button class="btn primary full btn-check-destination" id="analyzeQr" disabled>
+      Check destination <span aria-hidden="true">→</span>
+    </button>
+
+    <!-- Scan Results -->
     <div id="qrResult" class="result hidden"></div>
   </div>
 </section>
 {% endblock %}
+
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/vendor/jsQR.min.js') }}"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 <script src="{{ url_for('static', filename='js/qr.js') }}"></script>
 {% endblock %}

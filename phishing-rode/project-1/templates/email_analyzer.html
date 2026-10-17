@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}CYBERSPACE | AI Email & Header Tracker{% endblock %}
+{% block content %}
+{% if not session.get('user') %}
+<div class="guest-preview-banner">
+  <div class="guest-banner-left">
+    <span class="guest-banner-badge">VIEW ONLY</span>
+    <span class="guest-banner-text">You are viewing the AI Email Analyzer in preview mode. <a href="{{ url_for('login') }}">Sign In</a> or <a href="{{ url_for('register') }}">Create an Account</a> to execute live scans and access the Dashboard.</span>
+  </div>
+  <div class="guest-banner-actions">
+    <a href="{{ url_for('login') }}" class="btn-banner-login">Sign In →</a>
+  </div>
+</div>
+{% endif %}
+<section class="page-head">
+  <div class="eyebrow">MODULE 05 / EMAIL & HEADER FORENSICS</div>
+  <h1>Fake Email & Header Threat Analyzer</h1>
+  <p>Paste suspicious email headers, sender addresses, or raw email content. Our forensic engine detects domain spoofing, fake senders, SPF/DKIM failures, and phishing intent.</p>
+</section>
+
+<div class="email-analyzer-layout">
+  <!-- Input Section with Dual Track Tabs -->
+  <section class="scanner-box email-input-box rounded-2xl">
+    <div class="track-tabs-bar">
+      <div class="email-forensic-badge-group">
+        <span class="email-badge-icon"></span>
+        <span class="email-badge-title">Comprehensive Email & Header Forensics</span>
+        <span class="email-badge-sub">Technical Verification & AI NLP Intent</span>
+      </div>
+
+      <div class="preset-samples">
+        <span class="preset-label">Test Samples:</span>
+        <button type="button" class="preset-btn" onclick="loadSample('spoofed_paypal')">Spoofed PayPal</button>
+        <button type="button" class="preset-btn" onclick="loadSample('ceo_fraud')">CEO Urgent Scam</button>
+        <button type="button" class="preset-btn" onclick="loadSample('legitimate')">Legitimate Email</button>
+      </div>
+    </div>
+
+    <!-- Technical Header Input -->
+    <div class="track-pane" id="paneHeader">
+      <div class="section-label">
+        <label for="headerInput">
+          <span class="track-indicator">HEADER</span> Email Header & Sender Verification
+        </label>
+        <span>SPF / DKIM / RETURN-PATH / IP</span>
+      </div>
+      <textarea id="headerInput" rows="7" placeholder="Paste Raw Email Header here (e.g., From, Return-Path, Received, Received-SPF, DKIM-Signature)..."></textarea>
+      <div class="field-tips">
+        <span>✓ Sender Spoofing Check</span>
+        <span>✓ SPF/DKIM/DMARC Validation</span>
+        <span>✓ Originating IP Geo-Tracing</span>
+      </div>
+    </div>
+
+    <!-- AI Content Input -->
+    <div class="track-pane" id="paneContent">
+      <div class="section-label">
+        <label for="contentInput">
+          <span class="track-indicator">AI NLP</span> Email Text & Phishing Intent Analysis
+        </label>
+        <span>SUBJECT & BODY CONTENT</span>
+      </div>
+      <textarea id="contentInput" rows="7" placeholder="Paste Email Subject and Body content here (e.g., 'Subject: Urgent: Account Suspended. Dear customer, please verify your credentials immediately...')..."></textarea>
+      <div class="field-tips">
+        <span>✓ Panic & Urgency Detection</span>
+        <span>✓ Defanged URL Extraction</span>
+        <span>✓ Brand Impersonation Alert</span>
+      </div>
+    </div>
+
+    <div class="action-footer">
+      <button class="btn primary" id="analyzeEmailBtn">
+        <span class="icon">🔍︎</span> Inspect Email Forensics <span aria-hidden="true">→</span>
+      </button>
+      <button class="btn ghost" id="clearBtn" onclick="clearInputs()">Clear All</button>
+    </div>
+
+    <div id="emailScanResult" class="result hidden"></div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/email_analyzer.js') }}"></script>
+{% endblock %}

@@ -1,29 +1,614 @@
 {% extends "base.html" %}
-{% block title %}Cyber Scape | Admin Dashboard{% endblock %}
+{% block title %}CYBERSPACE | Threat Intelligence Map & Forensic Logs{% endblock %}
 {% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/vendor/leaflet.css') }}">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+<!-- Admin Section Header -->
 <section class="page-head admin-header">
   <div>
-    <div class="eyebrow">MODULE 04</div>
-    <h1>Security Dashboard</h1>
-    <p>Welcome back, {{ user or 'admin' }}. Local scan history and threat statistics for the prototype.</p>
+    <div class="eyebrow">MODULE 04 / FORENSIC AUDIT TRAILS</div>
+    <h1 class="admin-main-title">Ingress Scan History & Forensic Logs</h1>
+    <p class="admin-subtext">Stored records for authenticated sessions with instant PDF forensic threat reports.</p>
   </div>
-  <form action="{{ url_for('logout') }}" method="get" class="logout-form">
-    <button class="btn danger" type="submit">Logout</button>
-  </form>
+  <div class="header-right-meta">
+    <div class="user-pill">
+      <span class="user-icon">👤</span>
+      <span>{{ user or 'admin@cyberscape.test' }}</span>
+    </div>
+  </div>
 </section>
-<section class="cards four">
-  <div class="metric"><span>Total Scans</span><b>{{ stats.total }}</b></div>
-  <div class="metric"><span>Safe</span><b>{{ stats.safe }}</b></div>
-  <div class="metric"><span>Suspicious</span><b>{{ stats.suspicious }}</b></div>
-  <div class="metric"><span>Blocked</span><b>{{ stats.blocked }}</b></div>
+
+<!-- Threat Metric Overview Cards -->
+<section class="cards four admin-metric-cards">
+  <div class="metric metric-total">
+    <span class="metric-lbl">TOTAL INGRESS LOGS</span>
+    <b id="statTotal">{{ stats.total }}</b>
+    <span class="metric-sub">Stored Ingress Probes</span>
+  </div>
+  <div class="metric metric-safe">
+    <span class="metric-lbl">LOW RISK VERIFIED</span>
+    <b id="statSafe">{{ stats.safe }}</b>
+    <span class="metric-sub">Zero Malicious Indicators</span>
+  </div>
+  <div class="metric metric-suspicious">
+    <span class="metric-lbl">SUSPICIOUS INGRESS</span>
+    <b id="statSuspicious">{{ stats.suspicious }}</b>
+    <span class="metric-sub">Cloaked & Shortened Links</span>
+  </div>
+  <div class="metric metric-blocked">
+    <span class="metric-lbl">CRITICAL / BLOCKED</span>
+    <b id="statBlocked">{{ stats.blocked }}</b>
+    <span class="metric-sub">Active Phishing Campaigns</span>
+  </div>
 </section>
-<section class="table-box">
-<h3>Recent Threat Activity</h3>
-<table><thead><tr><th>Destination</th><th>Source</th><th>Risk</th><th>Status</th><th>Time</th></tr></thead>
-<tbody>
-{% for x in history %}
-<tr><td>{{ x.url }}</td><td>{{ x.source }}</td><td>{{ x.score }}/100</td><td><span class="pill {{ x.status|lower }}">{{ x.status }}</span></td><td>{{ x.time }}</td></tr>
-{% else %}<tr><td colspan="5" class="empty">No scans yet. Run the URL or QR scanner.</td></tr>{% endfor %}
-</tbody></table>
+
+<!-- Interactive Threat Intelligence Map Section -->
+<section class="threat-map-container rounded-2xl" id="threatMapSection">
+  <div class="map-header-bar">
+    <div class="map-title-group">
+      <div class="eyebrow map-eyebrow">GEOSPATIAL THREAT INTELLIGENCE</div>
+      <h2 class="map-main-title">Interactive Threat Intelligence Map</h2>
+      <p class="map-subtext">Real-time geospatial origins of detected phishing campaigns, suspicious redirects, and verified safe endpoints.</p>
+    </div>
+    
+    <div class="map-controls-group">
+      <div class="map-filter-pills" role="tablist">
+        <button type="button" class="map-filter-pill active" id="mapFilterAll" onclick="filterMapMarkers('all')">
+          All Origins (<span id="mapCountAll">{{ stats.total }}</span>)
+        </button>
+        <button type="button" class="map-filter-pill pill-critical" id="mapFilterMalicious" onclick="filterMapMarkers('MALICIOUS')">
+          <span class="status-dot-icon dot-red"></span> Critical Threats (<span id="mapCountMalicious">{{ stats.blocked }}</span>)
+        </button>
+        <button type="button" class="map-filter-pill pill-elevated" id="mapFilterSuspicious" onclick="filterMapMarkers('SUSPICIOUS')">
+          <span class="status-dot-icon dot-amber"></span> Elevated (<span id="mapCountSuspicious">{{ stats.suspicious }}</span>)
+        </button>
+        <button type="button" class="map-filter-pill pill-safe" id="mapFilterSafe" onclick="filterMapMarkers('SAFE')">
+          <span class="status-dot-icon dot-green"></span> Low Risk (<span id="mapCountSafe">{{ stats.safe }}</span>)
+        </button>
+      </div>
+
+      <button type="button" class="btn ghost btn-sm btn-reset-map" onclick="resetThreatMapView()" title="Reset Map Zoom & Center">
+        <span>⟲</span> Reset View
+      </button>
+    </div>
+  </div>
+
+  <!-- Interactive Map Viewport -->
+  <div class="threat-map-wrapper">
+    <div id="threatMap" class="threat-map-viewport"></div>
+    
+    <!-- Map Floating Stats Overlay -->
+    <div class="map-floating-overlay">
+      <div class="overlay-stat">
+        <span class="overlay-lbl">ACTIVE ORIGIN NODES</span>
+        <b class="font-mono">{{ stats.total }} Locations</b>
+      </div>
+      <div class="overlay-divider"></div>
+      <div class="overlay-stat">
+        <span class="overlay-lbl">CRITICAL HOTSPOTS</span>
+        <b class="font-mono text-red">{{ stats.blocked }} Nodes</b>
+      </div>
+      <div class="overlay-divider"></div>
+      <div class="overlay-stat">
+        <span class="overlay-lbl">DEFENSE STATUS</span>
+        <b class="text-green">Active Intercept</b>
+      </div>
+    </div>
+
+    <!-- Map Legend -->
+    <div class="map-legend">
+      <div class="legend-item"><span class="legend-dot dot-red"></span> Critical Threat (Score &ge; 70%)</div>
+      <div class="legend-item"><span class="legend-dot dot-amber"></span> Suspicious / Cloaked (Score 35-69%)</div>
+      <div class="legend-item"><span class="legend-dot dot-green"></span> Low Risk Verified (Score &lt; 35%)</div>
+    </div>
+  </div>
+
+  <!-- Active Geographic Hotspots Strip -->
+  <div class="map-hotspots-strip">
+    <span class="hotspots-label font-mono">TOP ORIGIN NODES:</span>
+    <div class="hotspots-scroll">
+      {% for h in top_hotspots %}
+      <button 
+        type="button" 
+        class="hotspot-chip" 
+        data-lat="{{ h.lat }}"
+        data-lon="{{ h.lon }}"
+        data-country="{{ h.country }}"
+        onclick="flyToHotspot(this)"
+        title="View threats originating from {{ h.country }}"
+      >
+        <span class="hotspot-flag">{{ h.flag }}</span>
+        <span class="hotspot-country">{{ h.country }}</span>
+        {% if h.malicious > 0 %}
+          <span class="hotspot-badge-threat">{{ h.malicious }} critical</span>
+        {% else %}
+          <span class="hotspot-badge-safe">{{ h.total }} safe</span>
+        {% endif %}
+      </button>
+      {% endfor %}
+    </div>
+  </div>
 </section>
+
+<!-- Dedicated Admin History & Forensic Logs Outer Card Container -->
+<section class="forensic-logs-container rounded-2xl">
+  <!-- Search Bar & Tab Filters Header Controls -->
+  <div class="logs-controls-bar">
+    <!-- Left: Search Input -->
+    <div class="search-input-box">
+      <span class="search-magnifier" aria-hidden="true">🔍︎</span>
+      <input 
+        type="text" 
+        id="logsSearchInput" 
+        placeholder="Filter by URL, host, or status..." 
+        autocomplete="off"
+        oninput="handleLogsFilter()"
+      >
+      <button class="search-clear-btn" id="searchClearBtn" onclick="clearLogsSearch()" style="display: none;">✕</button>
+    </div>
+
+    <!-- Right: Filter Pills/Tabs -->
+    <div class="filter-pills-group">
+      <button class="filter-pill active" id="tabAllLogs" onclick="switchLogFilter('all')">
+        All Logs ( <span id="countAllLogs">{{ total_count or stats.total }}</span> )
+      </button>
+      <button class="filter-pill" id="tabUrlProbes" onclick="switchLogFilter('URL')">
+        URL Probes ( <span id="countUrlProbes">{{ url_count or stats.url }}</span> )
+      </button>
+      <button class="filter-pill" id="tabQrDecodes" onclick="switchLogFilter('QR')">
+        QR Decodes ( <span id="countQrDecodes">{{ qr_count or stats.qr }}</span> )
+      </button>
+    </div>
+  </div>
+
+  <!-- Forensic Scan History Data Table (6 Columns) -->
+  <div class="forensic-table-wrapper">
+    <table class="forensic-data-table" id="forensicLogsTable">
+      <thead>
+        <tr>
+          <th style="width: 38%;">TARGET DESTINATION</th>
+          <th style="width: 10%;">INGRESS</th>
+          <th style="width: 15%;">PHISHING RISK SCORE</th>
+          <th style="width: 14%;">THREAT STATUS</th>
+          <th style="width: 13%;">TIMESTAMP</th>
+          <th style="width: 10%; text-align: right;">FORENSIC ACTIONS</th>
+        </tr>
+      </thead>
+      <tbody id="logsTableBody">
+        {% for row in history %}
+        <tr 
+          class="log-row" 
+          data-url="{{ row.url|lower }}" 
+          data-host="{{ row.host|lower }}" 
+          data-status="{{ row.status|lower }}"
+          data-source="{{ row.source }}"
+        >
+          <!-- Column 1: TARGET DESTINATION -->
+          <td>
+            <div class="dest-cell">
+              <div class="dest-top-row">
+                <span class="protocol-tag proto-{{ row.protocol|lower }}">{{ row.protocol }}</span>
+                <a 
+                  href="javascript:void(0)" 
+                  class="dest-url-link" 
+                  onclick="inspectRecord('{{ row.url }}')" 
+                  title="{{ row.url }}"
+                >
+                  {{ row.url }}
+                </a>
+              </div>
+              <div class="dest-sub-meta">
+                <span>Host: <b>{{ row.host }}</b></span>
+                <span class="meta-pipe">|</span>
+                <span>Registrar: <b>{{ row.registrar }}</b></span>
+                <span class="meta-pipe">|</span>
+                <a 
+                  href="javascript:void(0)" 
+                  class="map-locate-tag" 
+                  data-url="{{ row.url }}"
+                  data-lat="{{ row.geo_ip.latitude or 37.751 }}"
+                  data-lon="{{ row.geo_ip.longitude or -122.42 }}"
+                  onclick="locateThreatFromElement(this)"
+                  title="Locate {{ row.geo_ip.city or 'Global' }}, {{ row.geo_ip.country or 'Network' }} on Threat Intelligence Map"
+                >
+                  📍 <span>{{ row.geo_ip.city or 'Global' }}, {{ row.geo_ip.country or 'Network' }}</span>
+                </a>
+              </div>
+            </div>
+          </td>
+
+          <!-- Column 2: INGRESS -->
+          <td>
+            <span class="ingress-pill ingress-{{ row.source|lower }}">
+              {% if row.source == 'QR' %}
+                <span class="ingress-icon">📷</span> QR
+              {% elif row.source == 'EMAIL' %}
+                <span class="ingress-icon">✉️</span> EMAIL
+              {% else %}
+                <span class="ingress-icon">🔗</span> URL
+              {% endif %}
+            </span>
+          </td>
+
+          <!-- Column 3: PHISHING RISK SCORE -->
+          <td>
+            <div class="risk-score-wrapper">
+              <div class="risk-bar-track">
+                <div 
+                  class="risk-bar-fill {% if row.score >= 70 %}risk-critical{% elif row.score >= 35 %}risk-elevated{% else %}risk-safe{% endif %}" 
+                  data-score="{{ row.score }}"
+                ></div>
+              </div>
+              <span class="risk-score-label font-mono">{{ row.score }}%</span>
+            </div>
+          </td>
+
+          <!-- Column 4: THREAT STATUS -->
+          <td>
+            {% if row.status == 'SAFE' %}
+              <span class="status-badge-pill pill-safe">
+                <span class="status-dot-icon dot-green"></span> LOW RISK
+              </span>
+            {% elif row.status == 'MALICIOUS' %}
+              <span class="status-badge-pill pill-malicious">
+                <span class="status-dot-icon dot-red"></span> HIGH RISK
+              </span>
+            {% elif row.status == 'SUSPICIOUS' %}
+              <span class="status-badge-pill pill-suspicious">
+                <span class="status-dot-icon dot-amber"></span> ELEVATED RISK
+              </span>
+            {% else %}
+              <span class="status-badge-pill pill-unknown">
+                <span class="status-dot-icon dot-gray"></span> UNVERIFIED
+              </span>
+            {% endif %}
+          </td>
+
+          <!-- Column 5: TIMESTAMP -->
+          <td>
+            <span class="timestamp-text font-mono">{{ row.time }}</span>
+          </td>
+
+          <!-- Column 6: FORENSIC ACTIONS -->
+          <td style="text-align: right;">
+            <div class="action-buttons-group">
+              <button 
+                class="btn-action-inspect" 
+                onclick="inspectRecord('{{ row.url }}')"
+                title="Inspect in sandbox"
+              >
+                Inspect
+              </button>
+              <button 
+                class="btn-action-pdf" 
+                onclick="downloadRecordPdf('{{ row.url }}', this)"
+                title="Download PDF forensic report"
+              >
+                <span class="icon">📄</span> PDF Report
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr id="emptyRowPlaceholder">
+          <td colspan="6" class="empty-logs-cell">
+            <div class="empty-state-content">
+              <span class="empty-icon">📄</span>
+              <h4>No forensic records logged yet</h4>
+              <p>Execute URL inspections or QR scans to populate live forensic telemetry.</p>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Dynamic Search Empty State Banner (Hidden by default) -->
+  <div id="noMatchBanner" class="no-match-banner" style="display: none;">
+    <div class="no-match-content">
+      <span class="no-match-icon">🔍︎</span>
+      <h4>No matching forensic records found</h4>
+      <p>Try refining your search term or reset the tab filters.</p>
+      <button class="btn ghost btn-sm" onclick="clearLogsSearch()">Reset Search Filter</button>
+    </div>
+  </div>
+
+  <!-- Table Footer Summary -->
+  <div class="logs-table-footer">
+    <div class="footer-left">
+      <span>Showing <b id="visibleCount">{{ total_count or stats.total }}</b> of {{ total_count or stats.total }} forensic records</span>
+    </div>
+    <div class="footer-right">
+      <span class="security-seal">Authenticated Enterprise Forensic Audit Trail</span>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/vendor/leaflet.js') }}"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script id="threatMapData" type="text/plain">{{ threat_map_json|safe }}</script>
+<script>
+let currentLogFilter = 'all';
+
+// ==========================================
+// Interactive Threat Intelligence Map Logic
+// ==========================================
+let threatMap = null;
+let mapMarkersGroup = null;
+let allMapMarkers = [];
+const threatMapDataEl = document.getElementById("threatMapData");
+const rawThreatRecords = threatMapDataEl ? JSON.parse(threatMapDataEl.textContent || "[]") : [];
+
+function initThreatMap() {
+  const mapEl = document.getElementById("threatMap");
+  if (!mapEl || threatMap || typeof L === "undefined") return;
+
+  try {
+    threatMap = L.map("threatMap", {
+      center: [28, 10],
+      zoom: 2.2,
+      minZoom: 1.8,
+      maxZoom: 18,
+      scrollWheelZoom: true,
+      worldCopyJump: true
+    });
+
+    // CartoDB Positron high performance tile layer
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://openstreetmap.org">OSM</a>',
+      subdomains: "abcd",
+      maxZoom: 19
+    }).addTo(threatMap);
+
+    mapMarkersGroup = L.featureGroup().addTo(threatMap);
+    renderThreatMapMarkers(rawThreatRecords, "all");
+  } catch (err) {
+    console.error("Leaflet Map init error:", err);
+  }
+}
+
+function createPulsingIcon(status) {
+  let colorClass = "marker-safe";
+  if (status === "MALICIOUS") colorClass = "marker-critical";
+  else if (status === "SUSPICIOUS") colorClass = "marker-suspicious";
+
+  return L.divIcon({
+    className: "custom-map-pin",
+    html: `<div class="pin-ring ${colorClass}"></div><div class="pin-core ${colorClass}"></div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+    popupAnchor: [0, -12]
+  });
+}
+
+function renderThreatMapMarkers(records, filterStatus = "all") {
+  if (!mapMarkersGroup || !threatMap) return;
+  mapMarkersGroup.clearLayers();
+  allMapMarkers = [];
+
+  records.forEach(r => {
+    if (filterStatus !== "all" && r.status !== filterStatus) return;
+    if (r.lat == null || r.lon == null) return;
+
+    const icon = createPulsingIcon(r.status);
+    const marker = L.marker([r.lat, r.lon], { icon: icon });
+
+    const statusBadgeHtml = r.status === "MALICIOUS"
+      ? `<span class="popup-status-badge badge-critical">🔴 CRITICAL THREAT</span>`
+      : (r.status === "SUSPICIOUS"
+        ? `<span class="popup-status-badge badge-elevated">🟡 ELEVATED RISK</span>`
+        : `<span class="popup-status-badge badge-safe">🟢 LOW RISK</span>`);
+
+    const popupHtml = `
+      <div class="cyber-map-popup">
+        <div class="popup-top">
+          <span class="protocol-tag proto-${(r.protocol || 'https').toLowerCase()}">${r.protocol || 'HTTPS'}</span>
+          <b class="popup-url font-mono" title="${escapeHtml(r.url)}">${escapeHtml(r.url)}</b>
+        </div>
+        <div class="popup-meta-row">
+          ${statusBadgeHtml}
+          <span class="popup-score font-mono">Risk: <b>${r.score}%</b></span>
+        </div>
+        <div class="popup-details">
+          <div><span>Origin:</span> <b>${r.flag || '🌐'} ${escapeHtml(r.city)}, ${escapeHtml(r.country)}</b></div>
+          <div><span>IP Node:</span> <code>${escapeHtml(r.ip || r.host)}</code></div>
+          <div><span>Registrar:</span> <b>${escapeHtml(r.registrar)}</b></div>
+          <div><span>Ingress:</span> <b>${r.source} Probe</b> &bull; ${r.time}</div>
+        </div>
+        <div class="popup-actions">
+          <button class="popup-btn inspect" onclick="inspectRecord('${escapeJsString(r.url)}')">Inspect Sandbox</button>
+          <button class="popup-btn pdf" onclick="downloadRecordPdf('${escapeJsString(r.url)}', this)">📄 PDF Report</button>
+        </div>
+      </div>
+    `;
+
+    marker.bindPopup(popupHtml, { maxWidth: 320, className: "cyber-leaflet-popup" });
+    marker.threatUrl = r.url;
+    mapMarkersGroup.addLayer(marker);
+    allMapMarkers.push({ marker, data: r });
+  });
+}
+
+function filterMapMarkers(status) {
+  const pills = document.querySelectorAll(".map-filter-pill");
+  pills.forEach(p => p.classList.remove("active"));
+  
+  if (status === "all") document.getElementById("mapFilterAll")?.classList.add("active");
+  else if (status === "MALICIOUS") document.getElementById("mapFilterMalicious")?.classList.add("active");
+  else if (status === "SUSPICIOUS") document.getElementById("mapFilterSuspicious")?.classList.add("active");
+  else if (status === "SAFE") document.getElementById("mapFilterSafe")?.classList.add("active");
+
+  renderThreatMapMarkers(rawThreatRecords, status);
+}
+
+function resetThreatMapView() {
+  if (threatMap) {
+    threatMap.setView([28, 10], 2.2);
+  }
+}
+
+function flyToCoordinates(lat, lon, label) {
+  if (!threatMap) return;
+  threatMap.flyTo([lat, lon], 5.5, { duration: 1.4 });
+  const item = allMapMarkers.find(m => Math.abs(m.data.lat - lat) < 0.05 && Math.abs(m.data.lon - lon) < 0.05);
+  if (item) {
+    setTimeout(() => { item.marker.openPopup(); }, 1500);
+  }
+}
+
+function locateThreatOnMap(url, lat, lon) {
+  const mapSection = document.getElementById("threatMapSection");
+  if (mapSection) {
+    mapSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  if (!threatMap) return;
+  threatMap.flyTo([lat, lon], 6.5, { duration: 1.2 });
+  const item = allMapMarkers.find(m => m.data.url === url);
+  if (item) {
+    setTimeout(() => { item.marker.openPopup(); }, 1300);
+  }
+}
+
+function flyToHotspot(btn) {
+  if (!btn) return;
+  const lat = parseFloat(btn.getAttribute("data-lat"));
+  const lon = parseFloat(btn.getAttribute("data-lon"));
+  const country = btn.getAttribute("data-country") || "";
+  flyToCoordinates(lat, lon, country);
+}
+
+function locateThreatFromElement(el) {
+  if (!el) return;
+  const url = el.getAttribute("data-url") || "";
+  const lat = parseFloat(el.getAttribute("data-lat"));
+  const lon = parseFloat(el.getAttribute("data-lon"));
+  locateThreatOnMap(url, lat, lon);
+}
+
+function initRiskBars() {
+  document.querySelectorAll(".risk-bar-fill[data-score]").forEach(function(el) {
+    const score = el.getAttribute("data-score");
+    if (score !== null && score !== "") {
+      el.style.width = score + "%";
+    }
+  });
+}
+
+function escapeJsString(str) {
+  return (str || "").replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+// ==========================================
+// Forensic Logs Table Filter & Search Logic
+// ==========================================
+function switchLogFilter(filterType) {
+  currentLogFilter = filterType;
+  
+  const tabAll = document.getElementById("tabAllLogs");
+  const tabUrl = document.getElementById("tabUrlProbes");
+  const tabQr = document.getElementById("tabQrDecodes");
+
+  [tabAll, tabUrl, tabQr].forEach(t => { if(t) t.classList.remove("active"); });
+
+  if (filterType === 'URL' && tabUrl) tabUrl.classList.add("active");
+  else if (filterType === 'QR' && tabQr) tabQr.classList.add("active");
+  else if (tabAll) tabAll.classList.add("active");
+
+  handleLogsFilter();
+}
+
+function handleLogsFilter() {
+  const searchInput = document.getElementById("logsSearchInput");
+  const query = (searchInput.value || "").trim().toLowerCase();
+  const clearBtn = document.getElementById("searchClearBtn");
+  if (clearBtn) clearBtn.style.display = query.length > 0 ? "block" : "none";
+
+  const rows = document.querySelectorAll("#logsTableBody tr.log-row");
+  let visibleCount = 0;
+
+  rows.forEach(row => {
+    const rowUrl = row.getAttribute("data-url") || "";
+    const rowHost = row.getAttribute("data-host") || "";
+    const rowStatus = row.getAttribute("data-status") || "";
+    const rowSource = row.getAttribute("data-source") || "";
+
+    const matchesQuery = !query || rowUrl.includes(query) || rowHost.includes(query) || rowStatus.includes(query);
+    const matchesTab = currentLogFilter === 'all' || rowSource === currentLogFilter;
+
+    if (matchesQuery && matchesTab) {
+      row.style.display = "";
+      visibleCount++;
+    } else {
+      row.style.display = "none";
+    }
+  });
+
+  const visibleCountEl = document.getElementById("visibleCount");
+  if (visibleCountEl) visibleCountEl.textContent = visibleCount;
+
+  const noMatchBanner = document.getElementById("noMatchBanner");
+  const table = document.getElementById("forensicLogsTable");
+  if (noMatchBanner && table) {
+    if (visibleCount === 0 && rows.length > 0) {
+      noMatchBanner.style.display = "block";
+      table.style.display = "none";
+    } else {
+      noMatchBanner.style.display = "none";
+      table.style.display = "";
+    }
+  }
+}
+
+function clearLogsSearch() {
+  const input = document.getElementById("logsSearchInput");
+  if (input) input.value = "";
+  handleLogsFilter();
+}
+
+function inspectRecord(url) {
+  try {
+    sessionStorage.setItem("pendingScanUrl", url);
+    window.location.href = "/scanner";
+  } catch (e) {
+    window.location.href = "/scanner";
+  }
+}
+
+async function downloadRecordPdf(url, btnElement) {
+  const originalHtml = btnElement.innerHTML;
+  btnElement.disabled = true;
+  btnElement.innerHTML = '<span class="icon">⏳</span> PDF...';
+
+  try {
+    const res = await fetch("/api/generate-report?url=" + encodeURIComponent(url));
+    if (!res.ok) throw new Error("Failed to generate PDF forensic report");
+
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    const safeHost = url.replace(/^https?:\/\//i, "").split("/")[0].replace(/[^a-zA-Z0-9_-]/g, "_");
+    a.download = `CyberScape_Forensic_Report_${safeHost}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(blobUrl);
+  } catch (err) {
+    alert("Could not generate forensic report: " + err.message);
+  } finally {
+    btnElement.disabled = false;
+    btnElement.innerHTML = originalHtml;
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  initThreatMap();
+  initRiskBars();
+});
+initRiskBars();
+</script>
 {% endblock %}

@@ -7,7 +7,7 @@
   <p>Register a new account to access the Cyber Scape admin portal.</p>
 
   {% if error %}
-    <div class="message-box message-error">{{ error }}</div>
+  <div class="message-box message-error">{{ error }}</div>
   {% endif %}
 
   <form class="auth-form" method="post">
@@ -30,15 +30,18 @@
       Password
       <div class="password-wrap">
         <input id="passwordInput" type="password" name="password" placeholder="Create a password" required>
-        <button type="button" class="password-toggle" data-target="passwordInput" aria-label="Show password">Show</button>
+        <button type="button" class="password-toggle" data-target="passwordInput"
+          aria-label="Show password">Show</button>
       </div>
     </label>
 
     <label>
       Confirm Password
       <div class="password-wrap">
-        <input id="confirmPasswordInput" type="password" name="confirm_password" placeholder="Confirm password" required>
-        <button type="button" class="password-toggle" data-target="confirmPasswordInput" aria-label="Show password">Show</button>
+        <input id="confirmPasswordInput" type="password" name="confirm_password" placeholder="Confirm password"
+          required>
+        <button type="button" class="password-toggle" data-target="confirmPasswordInput"
+          aria-label="Show password">Show</button>
       </div>
     </label>
 

@@ -1,6 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Cyber Scape | URL Scanner{% endblock %}
+{% block title %}CYBERSPACE | URL Scanner{% endblock %}
 {% block content %}
+{% if not session.get('user') %}
+<div class="guest-preview-banner">
+  <div class="guest-banner-left">
+    <span class="guest-banner-badge">👁 VIEW ONLY</span>
+    <span class="guest-banner-text">You are viewing the URL Scanner in preview mode. <a href="{{ url_for('login') }}">Sign In</a> or <a href="{{ url_for('register') }}">Create an Account</a> to execute live scans and access the Dashboard.</span>
+  </div>
+  <div class="guest-banner-actions">
+    <a href="{{ url_for('login') }}" class="btn-banner-login">Sign In →</a>
+  </div>
+</div>
+{% endif %}
 <section class="page-head"><div class="eyebrow">URL CHECK / 01</div><h1>Check a website link</h1><p>Use the full URL you received. We check it against live threat intelligence without opening the destination.</p></section>
 <section class="scanner-box">
   <div class="section-label"><label for="urlInput">Destination URL</label><span>HTTP or HTTPS</span></div>
