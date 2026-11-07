@@ -1,0 +1,546 @@
+{% extends "base.html" %}
+{% block title %}CYBERSPACE | Ingress Scan History & Audit Logs{% endblock %}
+{% block content %}
+
+<!-- Admin Section Header -->
+<section class="page-head admin-header">
+  <div>
+    <div class="eyebrow">MODULE 04 / FORENSIC AUDIT TRAILS</div>
+    <h1 class="admin-main-title">Ingress Scan History & Forensic Logs</h1>
+    <p class="admin-subtext">Stored records for authenticated sessions with instant PDF forensic threat reports.</p>
+  </div>
+  <div class="header-right-meta">
+    <div class="user-pill">
+      <span class="user-icon">👤</span>
+      <span>{{ user or 'admin@cyberscape.test' }}</span>
+    </div>
+  </div>
+</section>
+
+<!-- Threat Metric Overview Cards -->
+<section class="cards four admin-metric-cards">
+  <div class="metric metric-total">
+    <span class="metric-lbl">TOTAL INGRESS LOGS</span>
+    <b id="statTotal">{{ stats.total }}</b>
+    <span class="metric-sub">Stored Ingress Probes</span>
+  </div>
+  <div class="metric metric-safe">
+    <span class="metric-lbl">LOW RISK VERIFIED</span>
+    <b id="statSafe">{{ stats.safe }}</b>
+    <span class="metric-sub">Zero Malicious Indicators</span>
+  </div>
+  <div class="metric metric-suspicious">
+    <span class="metric-lbl">SUSPICIOUS INGRESS</span>
+    <b id="statSuspicious">{{ stats.suspicious }}</b>
+    <span class="metric-sub">Cloaked & Shortened Links</span>
+  </div>
+  <div class="metric metric-blocked">
+    <span class="metric-lbl">CRITICAL / BLOCKED</span>
+    <b id="statBlocked">{{ stats.blocked }}</b>
+    <span class="metric-sub">Active Phishing Campaigns</span>
+  </div>
+</section>
+
+<!-- Dedicated Admin History & Forensic Logs Outer Card Container -->
+<section class="forensic-logs-container rounded-2xl" id="forensicLogsSection">
+  <!-- Search Bar & Tab Filters Header Controls -->
+  <div class="logs-controls-bar">
+    <!-- Left: Search Input -->
+    <div class="search-input-box">
+      <span class="search-magnifier" aria-hidden="true">🔍︎</span>
+      <input 
+        type="text" 
+        id="logsSearchInput" 
+        placeholder="Filter by URL, host, or status..." 
+        autocomplete="off"
+        oninput="handleLogsFilter()"
+      >
+      <button class="search-clear-btn" id="searchClearBtn" onclick="clearLogsSearch()" style="display: none;">✕</button>
+    </div>
+
+    <!-- Right: Filter Pills/Tabs -->
+    <div class="filter-pills-group">
+      <button class="filter-pill active" id="tabAllLogs" onclick="switchLogFilter('all')">
+        All Logs ( <span id="countAllLogs">{{ total_count or stats.total }}</span> )
+      </button>
+      <button class="filter-pill" id="tabUrlProbes" onclick="switchLogFilter('URL')">
+        URL Probes ( <span id="countUrlProbes">{{ url_count or stats.url }}</span> )
+      </button>
+      <button class="filter-pill" id="tabQrDecodes" onclick="switchLogFilter('QR')">
+        QR Decodes ( <span id="countQrDecodes">{{ qr_count or stats.qr }}</span> )
+      </button>
+    </div>
+  </div>
+
+  <!-- Forensic Scan History Data Table (6 Columns) -->
+  <div class="forensic-table-wrapper">
+    <table class="forensic-data-table" id="forensicLogsTable">
+      <thead>
+        <tr>
+          <th style="width: 38%;">TARGET DESTINATION</th>
+          <th style="width: 10%;">INGRESS</th>
+          <th style="width: 15%;">PHISHING RISK SCORE</th>
+          <th style="width: 14%;">THREAT STATUS</th>
+          <th style="width: 13%;">TIMESTAMP</th>
+          <th style="width: 10%; text-align: right;">FORENSIC ACTIONS</th>
+        </tr>
+      </thead>
+      <tbody id="logsTableBody">
+        {% for row in history %}
+        <tr 
+          class="log-row" 
+          data-url="{{ row.url|lower }}" 
+          data-host="{{ row.host|lower }}" 
+          data-status="{{ row.status|lower }}"
+          data-source="{{ row.source }}"
+        >
+          <!-- Column 1: TARGET DESTINATION -->
+          <td>
+            <div class="dest-cell">
+              <div class="dest-top-row">
+                <span class="protocol-tag proto-{{ row.protocol|lower }}">{{ row.protocol }}</span>
+                <a 
+                  href="javascript:void(0)" 
+                  class="dest-url-link" 
+                  onclick="inspectRecord('{{ row.url }}')" 
+                  title="{{ row.url }}"
+                >
+                  {{ row.url }}
+                </a>
+              </div>
+              <div class="dest-sub-meta">
+                <span>Host: <b>{{ row.host }}</b></span>
+                <span class="meta-pipe">|</span>
+                <span>Registrar: <b>{{ row.registrar }}</b></span>
+                <span class="meta-pipe">|</span>
+                <span class="geo-meta-text font-mono">
+                  📍 <span>{{ row.geo_ip.city or 'Global' }}, {{ row.geo_ip.country or 'Network' }}</span>
+                </span>
+              </div>
+            </div>
+          </td>
+
+          <!-- Column 2: INGRESS -->
+          <td>
+            <span class="ingress-pill ingress-{{ row.source|lower }}">
+              {% if row.source == 'QR' %}
+                <span class="ingress-icon">📷</span> QR
+              {% elif row.source == 'EMAIL' %}
+                <span class="ingress-icon">✉️</span> EMAIL
+              {% else %}
+                <span class="ingress-icon">🔗</span> URL
+              {% endif %}
+            </span>
+          </td>
+
+          <!-- Column 3: PHISHING RISK SCORE -->
+          <td>
+            <div class="risk-score-wrapper">
+              <div class="risk-bar-track">
+                <div 
+                  class="risk-bar-fill {% if row.score >= 70 %}risk-critical{% elif row.score >= 35 %}risk-elevated{% else %}risk-safe{% endif %}" 
+                  data-score="{{ row.score }}"
+                ></div>
+              </div>
+              <span class="risk-score-label font-mono">{{ row.score }}%</span>
+            </div>
+          </td>
+
+          <!-- Column 4: THREAT STATUS -->
+          <td>
+            {% if row.status == 'SAFE' %}
+              <span class="status-badge-pill pill-safe">
+                <span class="status-dot-icon dot-green"></span> LOW RISK
+              </span>
+            {% elif row.status == 'MALICIOUS' %}
+              <span class="status-badge-pill pill-malicious">
+                <span class="status-dot-icon dot-red"></span> HIGH RISK
+              </span>
+            {% elif row.status == 'SUSPICIOUS' %}
+              <span class="status-badge-pill pill-suspicious">
+                <span class="status-dot-icon dot-amber"></span> ELEVATED RISK
+              </span>
+            {% else %}
+              <span class="status-badge-pill pill-unknown">
+                <span class="status-dot-icon dot-gray"></span> UNVERIFIED
+              </span>
+            {% endif %}
+          </td>
+
+          <!-- Column 5: TIMESTAMP -->
+          <td>
+            <span class="timestamp-text font-mono">{{ row.time }}</span>
+          </td>
+
+          <!-- Column 6: FORENSIC ACTIONS -->
+          <td style="text-align: right;">
+            <div class="action-buttons-group">
+              <button 
+                class="btn-action-inspect" 
+                onclick="inspectRecord('{{ row.url }}')"
+                title="Inspect in sandbox"
+              >
+                Inspect
+              </button>
+              <button 
+                class="btn-action-pdf" 
+                onclick="downloadRecordPdf('{{ row.url }}', this)"
+                title="Download PDF forensic report"
+              >
+                <span class="icon">📄</span> PDF Report
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr id="emptyRowPlaceholder">
+          <td colspan="6" class="empty-logs-cell">
+            <div class="empty-state-content">
+              <span class="empty-icon">📄</span>
+              <h4>No forensic records logged yet</h4>
+              <p>Execute URL inspections or QR scans to populate live forensic telemetry.</p>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Dynamic Search Empty State Banner (Hidden by default) -->
+  <div id="noMatchBanner" class="no-match-banner" style="display: none;">
+    <div class="no-match-content">
+      <span class="no-match-icon">🔍︎</span>
+      <h4>No matching forensic records found</h4>
+      <p>Try refining your search term or reset the tab filters.</p>
+      <button class="btn ghost btn-sm" onclick="clearLogsSearch()">Reset Search Filter</button>
+    </div>
+  </div>
+
+  <!-- Table Footer Summary -->
+  <div class="logs-table-footer">
+    <div class="footer-left">
+      <span>Showing <b id="visibleCount">{{ total_count or stats.total }}</b> of {{ total_count or stats.total }} forensic records</span>
+    </div>
+    <div class="footer-right">
+      <span class="security-seal">Authenticated Enterprise Forensic Audit Trail</span>
+    </div>
+  </div>
+</section>
+
+<!-- Enhanced "Inspect" Audit Overview Section (Dark Charcoal Theme #0b0f19 / #131b2e) -->
+<section class="audit-overview-container" id="auditOverviewSection" style="display: none;">
+  <div class="audit-layout">
+    <!-- Left Sidebar: Authorized Testing / Run an Audit -->
+    <aside class="audit-sidebar">
+      <div>
+        <div class="audit-sidebar-top-bar">
+          <span class="audit-sidebar-brand">CYBERSHIELD</span>
+          <button type="button" class="btn-audit-back" onclick="closeAuditOverview()">
+            <span>←</span> Back to Logs
+          </button>
+        </div>
+
+        <div>
+          <span class="audit-sidebar-eyebrow">AUTHORIZED TESTING</span>
+          <h2 class="audit-sidebar-title">Run an audit</h2>
+          <p class="audit-sidebar-desc">
+            Check security headers, cookies, and CORS settings for a target you are authorized to test.
+          </p>
+
+          <form id="auditSidebarForm" onsubmit="handleSidebarAuditSubmit(event)">
+            <div class="audit-form-group">
+              <label class="audit-form-label">Target URL</label>
+              <input 
+                type="text" 
+                id="auditTargetUrlInput" 
+                class="audit-form-input" 
+                placeholder="www.google.com" 
+                required
+              >
+            </div>
+
+            <label class="audit-checkbox-label">
+              <input type="checkbox" id="auditAuthCheck" checked required>
+              <span>I own this target or have permission to test it.</span>
+            </label>
+
+            <button type="submit" class="btn-audit-submit" id="btnAuditSidebarSubmit">
+              Run security audit
+            </button>
+          </form>
+        </div>
+
+        <div class="audit-sidebar-section">
+          <h3 class="audit-sidebar-subheading">View a saved report</h3>
+          <input type="file" id="auditJsonFileInput" class="audit-file-input" accept=".json" onchange="handleAuditJsonUpload(event)">
+          <textarea id="auditJsonPasteInput" class="audit-textarea" rows="3" placeholder="Or paste report JSON here"></textarea>
+          <button type="button" class="btn-audit-load" onclick="handleAuditJsonPaste()">
+            Load report
+          </button>
+        </div>
+      </div>
+
+      <div class="audit-sidebar-footer">
+        Audits are sent from this computer. This app listens on localhost only.
+      </div>
+    </aside>
+
+    <!-- Main Content Panel -->
+    <main class="audit-main">
+      <!-- Breadcrumb & Top Controls -->
+      <div class="audit-header-bar">
+        <div>
+          <div class="audit-eyebrow">SECURITY POSTURE / REPORTS</div>
+          <h1 class="audit-title">Audit overview</h1>
+          <p class="audit-subtitle">One clear view of the security headers, cookies, and CORS checks in your report.</p>
+        </div>
+        <div class="audit-header-right">
+          <button type="button" class="btn-audit-back" onclick="closeAuditOverview()">
+            <span>←</span> Back to Scan History
+          </button>
+          <span class="audit-live-badge">Live audit | 1 target(s)</span>
+        </div>
+      </div>
+
+      <!-- 4 Summary Metric Counters -->
+      <div class="audit-metrics-grid">
+        <div class="audit-metric-card">
+          <span class="lbl">TARGETS</span>
+          <span class="val" id="auditStatTargets">1</span>
+          <span class="sub">in this report</span>
+        </div>
+        <div class="audit-metric-card">
+          <span class="lbl">CHECKS PASSED</span>
+          <span class="val val-passed" id="auditStatPassed">0</span>
+          <span class="sub">no issue reported</span>
+        </div>
+        <div class="audit-metric-card">
+          <span class="lbl">WARNINGS</span>
+          <span class="val val-warnings" id="auditStatWarnings">0</span>
+          <span class="sub">review recommended</span>
+        </div>
+        <div class="audit-metric-card">
+          <span class="lbl">FAILURES</span>
+          <span class="val val-failures" id="auditStatFailures">0</span>
+          <span class="sub">attention required</span>
+        </div>
+      </div>
+
+      <!-- 1. Risk Status & Explanation Card -->
+      <div class="audit-risk-card">
+        <div class="audit-risk-top">
+          <div>
+            <div class="audit-eyebrow" style="margin-bottom: 2px;">COMPREHENSIVE RISK VERDICT</div>
+            <div class="audit-risk-badge-group">
+              <span class="audit-risk-pill pill-high" id="auditThreatStatusPill">
+                <span class="status-dot-icon dot-red"></span> <span id="auditThreatStatusText">HIGH RISK</span>
+              </span>
+              <span style="font-size: 0.75rem; color: #94a3b8;">
+                Ingress: <b id="auditTargetIngress" style="color: #f1f5f9;">URL</b>
+              </span>
+              <span style="color: #475569;">|</span>
+              <span id="auditTargetTimestamp" style="font-family: var(--font-mono); font-size: 0.75rem; color: #94a3b8;"></span>
+            </div>
+          </div>
+
+          <div class="audit-score-gauge">
+            <div class="audit-score-text">
+              <span class="score-lbl">PHISHING RISK SCORE</span>
+              <span class="score-num font-mono" id="auditRiskScoreValue">0%</span>
+            </div>
+            <div class="audit-score-bar-track">
+              <div class="audit-score-bar-fill" id="auditRiskScoreBar" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dedicated "Risk Analysis / Why this score?" Section -->
+        <div class="audit-reasons-section">
+          <div class="audit-reasons-title-row">
+            <span>🛡️</span>
+            <h3 class="audit-reasons-title">Risk Analysis / Why this score?</h3>
+          </div>
+          <div class="audit-reasons-grid" id="auditReasonsGrid">
+            <!-- Dynamically populated reason cards -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Target details & Security Headers Checklist -->
+      <div class="audit-target-card">
+        <div class="audit-target-head">
+          <div>
+            <h2 class="audit-target-url-title font-mono" id="auditTargetUrlHeading">https://example.com</h2>
+            <div class="audit-target-meta-row">
+              <span id="auditTargetSummaryFailures" style="color: #f87171; font-weight: 700;">0 failures</span>
+              <span>•</span>
+              <span id="auditTargetSummaryWarnings" style="color: #fbbf24; font-weight: 700;">0 warnings</span>
+              <span>•</span>
+              <span>Final URL: <code id="auditTargetFinalUrl" class="font-mono" style="color: #cbd5e1;">https://example.com</code></span>
+              <span>•</span>
+              <span id="auditTargetHttpStatus" style="padding: 2px 6px; border-radius: 4px; background: #0b0f19; font-family: var(--font-mono); font-size: 0.6875rem; color: #34d399;">HTTP 200</span>
+            </div>
+          </div>
+
+          <div class="audit-target-filter-wrap">
+            <label style="font-size: 0.75rem; color: #94a3b8;">Filter:</label>
+            <select class="audit-filter-select" id="auditChecksFilterSelect" onchange="filterAuditChecks(this.value)">
+              <option value="all">All checks</option>
+              <option value="passed">Checks Passed</option>
+              <option value="warnings">Warnings</option>
+              <option value="failures">Failures</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Detailed Check Items List -->
+        <div class="audit-checks-list" id="auditChecksListContainer">
+          <!-- Dynamically populated checklist items -->
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="audit-actions-bar">
+          <button type="button" class="btn-audit-action primary" id="btnAuditDownloadPdf" onclick="downloadCurrentAuditPdf()">
+            <span>📄</span> Download Forensic PDF Report
+          </button>
+          <button type="button" class="btn-audit-action secondary" onclick="copyCurrentAuditJson()">
+            <span>📋</span> Copy Audit JSON
+          </button>
+          <button type="button" class="btn-audit-action secondary" onclick="rescanCurrentAuditTarget()">
+            <span>🔍</span> Rescan in Sandbox
+          </button>
+        </div>
+      </div>
+    </main>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script id="historyRecordsData" type="text/plain">{{ history_json|safe }}</script>
+<script>
+let currentLogFilter = 'all';
+
+function initRiskBars() {
+  document.querySelectorAll(".risk-bar-fill[data-score]").forEach(function(el) {
+    const score = el.getAttribute("data-score");
+    if (score !== null && score !== "") {
+      el.style.width = score + "%";
+    }
+  });
+}
+
+function escapeJsString(str) {
+  return (str || "").replace(/'/g, "\\'").replace(/"/g, '\\"');
+}
+
+// ==========================================
+// Forensic Logs Table Filter & Search Logic
+// ==========================================
+function switchLogFilter(filterType) {
+  currentLogFilter = filterType;
+  
+  const tabAll = document.getElementById("tabAllLogs");
+  const tabUrl = document.getElementById("tabUrlProbes");
+  const tabQr = document.getElementById("tabQrDecodes");
+
+  [tabAll, tabUrl, tabQr].forEach(t => { if(t) t.classList.remove("active"); });
+
+  if (filterType === 'URL' && tabUrl) tabUrl.classList.add("active");
+  else if (filterType === 'QR' && tabQr) tabQr.classList.add("active");
+  else if (tabAll) tabAll.classList.add("active");
+
+  handleLogsFilter();
+}
+
+function handleLogsFilter() {
+  const searchInput = document.getElementById("logsSearchInput");
+  const query = (searchInput.value || "").trim().toLowerCase();
+  const clearBtn = document.getElementById("searchClearBtn");
+  if (clearBtn) clearBtn.style.display = query.length > 0 ? "block" : "none";
+
+  const rows = document.querySelectorAll("#logsTableBody tr.log-row");
+  let visibleCount = 0;
+
+  rows.forEach(row => {
+    const rowUrl = row.getAttribute("data-url") || "";
+    const rowHost = row.getAttribute("data-host") || "";
+    const rowStatus = row.getAttribute("data-status") || "";
+    const rowSource = row.getAttribute("data-source") || "";
+
+    const matchesQuery = !query || rowUrl.includes(query) || rowHost.includes(query) || rowStatus.includes(query);
+    const matchesTab = currentLogFilter === 'all' || rowSource === currentLogFilter;
+
+    if (matchesQuery && matchesTab) {
+      row.style.display = "";
+      visibleCount++;
+    } else {
+      row.style.display = "none";
+    }
+  });
+
+  const visibleCountEl = document.getElementById("visibleCount");
+  if (visibleCountEl) visibleCountEl.textContent = visibleCount;
+
+  const noMatchBanner = document.getElementById("noMatchBanner");
+  const table = document.getElementById("forensicLogsTable");
+  if (noMatchBanner && table) {
+    if (visibleCount === 0 && rows.length > 0) {
+      noMatchBanner.style.display = "block";
+      table.style.display = "none";
+    } else {
+      noMatchBanner.style.display = "none";
+      table.style.display = "";
+    }
+  }
+}
+
+function clearLogsSearch() {
+  const input = document.getElementById("logsSearchInput");
+  if (input) input.value = "";
+  handleLogsFilter();
+}
+
+function inspectRecord(url) {
+  try {
+    sessionStorage.setItem("pendingScanUrl", url);
+    window.location.href = "/scanner";
+  } catch (e) {
+    window.location.href = "/scanner";
+  }
+}
+
+async function downloadRecordPdf(url, btnElement) {
+  const originalHtml = btnElement.innerHTML;
+  btnElement.disabled = true;
+  btnElement.innerHTML = '<span class="icon">⏳</span> PDF...';
+
+  try {
+    const res = await fetch("/generate-report?url=" + encodeURIComponent(url));
+    if (!res.ok) throw new Error("Failed to generate PDF forensic report");
+
+    const blob = await res.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    const safeHost = url.replace(/^https?:\/\//i, "").split("/")[0].replace(/[^a-zA-Z0-9_-]/g, "_");
+    a.download = `CyberScape_Forensic_Report_${safeHost}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(blobUrl);
+  } catch (err) {
+    alert("Could not generate forensic report: " + err.message);
+  } finally {
+    btnElement.disabled = false;
+    btnElement.innerHTML = originalHtml;
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  initRiskBars();
+});
+initRiskBars();
+</script>
+{% endblock %}

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}Cyber Scape{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/cyberscape-logo.svg') }}">
+</head>
+
+<body>
+  <div class="bg-grid"></div>
+  <header class="nav">
+    <a class="brand brand-cyberspace brand-cyberscape" href="{{ url_for('home') }}" aria-label="CyberScape Home">
+      {% set logo_id = "header" %}
+      {% set logo_class = "nav-logo" %}
+      {% include "components/logo.html" %}
+      <span class="sr-only">CYBERSPACE</span>
+    </a>
+    <nav>
+      <a href="{{ url_for('home') }}" class="{% if request.endpoint == 'home' %}active{% endif %}">Overview</a>
+      <a href="{{ url_for('scanner') if session.get('user') else url_for('login') }}" class="{% if request.endpoint == 'scanner' %}active{% endif %}">URL Scanner</a>
+      <a href="{{ url_for('qr_scanner') if session.get('user') else url_for('login') }}" class="{% if request.endpoint == 'qr_scanner' %}active{% endif %}">QR Scanner</a>
+      <a href="{{ url_for('email_analyzer_page') if session.get('user') else url_for('login') }}"
+        class="{% if request.endpoint == 'email_analyzer_page' %}active{% endif %}">AI Email Analyzer</a>
+      {% if session.get('user') %}
+      <a href="{{ url_for('dashboard') }}"
+        class="{% if request.endpoint in ['admin', 'dashboard'] or active_nav == 'dashboard' %}active{% endif %}">Dashboard</a>
+      <a href="{{ url_for('logout') }}" class="nav-logout">Logout</a>
+      {% else %}
+      <a href="{{ url_for('login') }}" class="nav-auth-link">Login</a>
+      <a href="{{ url_for('register') }}" class="nav-auth-btn">Sign Up</a>
+      {% endif %}
+    </nav>
+  </header>
+  <main>{% block content %}{% endblock %}</main>
+
+  <footer><span>Cyber Scape</span><span>Threat intelligence for everyday links</span></footer>
+  <div id="cyberAuthBridge"
+       data-authenticated="{{ 'true' if session.get('user') else 'false' }}"
+       data-user="{{ session.get('user') or '' }}"
+       data-login-url="{{ url_for('login') }}"
+       data-register-url="{{ url_for('register') }}"
+       style="display: none;"></div>
+  <script>
+    (function () {
+      var bridge = document.getElementById("cyberAuthBridge");
+      window.CYBER_AUTH = {
+        isAuthenticated: bridge ? bridge.getAttribute("data-authenticated") === "true" : false,
+        user: bridge && bridge.getAttribute("data-user") ? bridge.getAttribute("data-user") : null,
+        loginUrl: bridge ? bridge.getAttribute("data-login-url") : "/login",
+        registerUrl: bridge ? bridge.getAttribute("data-register-url") : "/register"
+      };
+    })();
+  </script>
+  {% if not session.get('user') and request.endpoint not in ['login', 'register'] %}
+  <script>
+    // Mandatory Authentication Gate: Any click anywhere instantly redirects to the login page without using any API
+    document.addEventListener("click", function(e) {
+      var link = e.target.closest("a");
+      if (link) {
+        var href = link.getAttribute("href") || "";
+        if (href.indexOf("/login") !== -1 || href.indexOf("/register") !== -1) {
+          return; // Allow direct navigation to login or register
+        }
+      }
+      if (e.target.closest(".auth-form, .auth-panel, #loginForm, #registerForm")) {
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      window.location.href = "{{ url_for('login') }}";
+    }, true);
+  </script>
+  {% endif %}
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+
+</html>
