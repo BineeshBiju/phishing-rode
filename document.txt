@@ -1,0 +1,93 @@
+# Cyber Scape (Phishing Rode) - Project Overview & Description
+
+## 1. Project Summary
+**Cyber Scape (Phishing Rode)** is a cybersecurity threat-intelligence and phishing mitigation web platform built with Python (Flask) and modern responsive frontend interfaces. The application protects users from malicious links and deceptive QR codes (quishing) by analyzing destinations against live threat intelligence databases before users open or navigate to them.
+
+---
+
+## 2. Key Features
+
+### 🔍 Real-Time URL Scanner
+- **Zero-Exposure Link Inspection:** Allows users to inspect untrusted URLs safely without opening the destination in a browser.
+- **Threat Intelligence Integration:** Actively queries live threat intelligence feeds (including URLhaus by abuse.ch) via REST APIs.
+- **Heuristic & Reputation Scoring:** Computes risk scores (0–100), categorization (Safe, Suspicious, Malicious), and human-readable threat rationale.
+
+### 📷 In-Browser QR Code Scanner (Anti-Quishing)
+- **Decodes QR Codes Locally:** Uses client-side image processing (`jsQR`) to extract destinations from uploaded screenshots and images without exposing sensitive user images to third-party endpoints.
+- **Automated Hand-off:** Automatically extracts the encoded destination URL and forwards it directly to the threat analysis pipeline.
+
+### 🛡️ Automated Mitigation & Protection
+- **Instant Risk Warnings:** Suspicious or unknown destinations are flagged with explainable context.
+- **Automated Block Page (`/blocked`):** High-risk and confirmed malicious destinations trigger an automated protection intercept to prevent credential theft and drive-by malware downloads.
+- **Detailed Threat Analysis View (`/analysis`):** Provides deep-dive details into scan history, risk breakdown, and validation timestamps.
+
+### 📊 Admin Security Dashboard & Metrics
+- **Real-Time Telemetry:** Tracks aggregate scan counts, safe vs. suspicious vs. blocked link ratios, and QR-specific detections.
+- **Threat Activity Log:** Chronological table displaying recent target URLs, scan source (URL vs. QR), status pills, and timestamps.
+- **Authenticated Access:** Restricted behind session-based login guards to ensure data privacy.
+
+### 🔐 User Authentication & Session Security
+- **Multi-Identifier Login:** Supports authentication using Username, Email address, or Phone number.
+- **Secure Password Hashing:** Powered by Werkzeug's cryptographic password hashing (`generate_password_hash` / `check_password_hash`).
+- **SQLite Persistence:** Clean schema for user credentials, remember-me functionality, and user profiles.
+
+---
+
+## 3. Technology Stack
+
+- **Backend:** Python 3 (Flask, Requests, SQLite3, Werkzeug Security)
+- **Frontend:** HTML5, CSS3, JavaScript (ES6+), Tailwind CSS, Plus Jakarta Sans, Material Symbols
+- **QR Decoding Engine:** `jsQR` (Client-side JavaScript QR code decoder)
+- **External Threat Feeds:** abuse.ch URLhaus API
+- **Database:** SQLite (`cyberscape.db` / `guardshield.db`)
+
+---
+
+## 4. Repository Structure
+
+```text
+phishing-rode/
+├── document.txt                    # Project documentation and summary
+├── README.md                       # Project introduction
+├── venv/                           # Python virtual environment
+└── phishing-rode/
+    └── project-1/
+        ├── app.py                  # Core Flask server, routes, and API endpoints
+        ├── cyberscape.db           # SQLite database for users and logs
+        ├── requirements.txt        # Python dependency manifest
+        ├── pytest.ini              # Test runner configuration
+        ├── static/
+        │   ├── css/                # Styling (style.css, responsive.css)
+        │   └── js/                 # Client scripts (app.js, scanner.js, qr.js)
+        ├── templates/              # Jinja2 HTML templates
+        │   ├── base.html           # Master layout template
+        │   ├── index.html          # Hero landing page
+        │   ├── scanner.html        # Interactive URL scanner
+        │   ├── qr_scanner.html     # Client-side QR code decoder & checker
+        │   ├── analysis.html       # Detailed risk assessment page
+        │   ├── blocked.html        # Automated mitigation block page
+        │   ├── admin.html          # Administrative security dashboard
+        │   ├── login.html          # User login
+        │   └── register.html       # User registration
+        └── tests/                  # Unit and integration test suite
+```
+
+---
+
+## 5. How It Works
+
+1. **Input Submission:** A user submits a suspicious destination URL or uploads a QR code image.
+2. **Local Validation & Decoding:** The application validates URL syntax or decodes the QR matrix directly in the client browser.
+3. **Intelligence Verification:** The Flask backend verifies the hostname and contacts the URLhaus API to check for active malware distribution, phishing hosting, or suspicious behavior.
+4. **Scoring & Mitigation:** The response evaluates the risk score:
+   - **Safe (0/100):** No threat indicators detected; user can proceed.
+   - **Malicious (100/100):** Flagged in active threat lists; user is redirected to the `/blocked` shield page.
+5. **Dashboard Auditing:** The scan event is saved to the operational threat log and reflected in the admin dashboard.
+
+---
+
+## 6. Default Development Credentials
+- **Admin Email:** `admin@cyberscape.test`
+- **Username:** `Admin`
+- **Phone:** `+1234567890`
+- **Password:** `admin123`
