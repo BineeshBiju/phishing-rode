@@ -1,53 +1,53 @@
 {% extends "base.html" %}
 {% block title %}Cyber Scape | Sign Up{% endblock %}
 {% block content %}
-<section class="auth-panel">
-  <div class="eyebrow">CREATE ACCOUNT</div>
-  <h1>Sign Up</h1>
-  <p>Register a new account to access the Cyber Scape admin portal.</p>
+<section class="auth-panel max-w-[440px] mx-auto bg-panel border border-line rounded-panel p-8 mt-12 shadow-sm">
+  <div class="eyebrow text-xs font-mono font-bold uppercase tracking-wider text-muted mb-2">CREATE ACCOUNT</div>
+  <h1 class="text-[32px] font-bold text-ink leading-tight mb-2">Sign Up</h1>
+  <p class="text-sm text-muted mb-6 leading-relaxed">Register a new account to access the Cyber Scape admin portal.</p>
 
   {% if error %}
-  <div class="message-box message-error">{{ error }}</div>
+  <div class="message-box message-error p-3.5 mb-6 rounded-input bg-danger/10 border border-danger/30 text-danger text-sm font-medium">{{ error }}</div>
   {% endif %}
 
-  <form class="auth-form" method="post">
-    <label>
+  <form class="auth-form flex flex-col gap-4" method="post">
+    <label class="block text-sm font-semibold text-ink">
       Full Name
-      <input type="text" name="name" placeholder="Your full name" required>
+      <input type="text" name="name" placeholder="Your full name" required class="mt-1 block w-full bg-ground border border-line rounded-input px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-ink transition-colors">
     </label>
 
-    <label>
+    <label class="block text-sm font-semibold text-ink">
       Email Address
-      <input type="email" name="email" placeholder="you@example.com" required>
+      <input type="email" name="email" placeholder="you@example.com" required class="mt-1 block w-full bg-ground border border-line rounded-input px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-ink transition-colors">
     </label>
 
-    <label>
+    <label class="block text-sm font-semibold text-ink">
       Mobile Number
-      <input type="tel" name="phone" placeholder="+1234567890" required>
+      <input type="tel" name="phone" placeholder="+1234567890" required class="mt-1 block w-full bg-ground border border-line rounded-input px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-ink transition-colors">
     </label>
 
-    <label>
+    <label class="block text-sm font-semibold text-ink">
       Password
-      <div class="password-wrap">
-        <input id="passwordInput" type="password" name="password" placeholder="Create a password" required>
-        <button type="button" class="password-toggle" data-target="passwordInput"
+      <div class="password-wrap relative mt-1 flex items-center">
+        <input id="passwordInput" type="password" name="password" placeholder="Create a password" required class="block w-full bg-ground border border-line rounded-input px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-ink transition-colors pr-12">
+        <button type="button" class="password-toggle absolute right-3 text-xs font-medium text-muted hover:text-ink cursor-pointer" data-target="passwordInput"
           aria-label="Show password">Show</button>
       </div>
     </label>
 
-    <label>
+    <label class="block text-sm font-semibold text-ink">
       Confirm Password
-      <div class="password-wrap">
+      <div class="password-wrap relative mt-1 flex items-center">
         <input id="confirmPasswordInput" type="password" name="confirm_password" placeholder="Confirm password"
-          required>
-        <button type="button" class="password-toggle" data-target="confirmPasswordInput"
+          required class="block w-full bg-ground border border-line rounded-input px-3.5 py-2.5 text-sm text-ink focus:outline-none focus:border-ink transition-colors pr-12">
+        <button type="button" class="password-toggle absolute right-3 text-xs font-medium text-muted hover:text-ink cursor-pointer" data-target="confirmPasswordInput"
           aria-label="Show password">Show</button>
       </div>
     </label>
 
-    <div class="auth-actions">
-      <a class="helper-link" href="{{ url_for('login') }}">Already have an account? Sign In</a>
-      <button class="btn primary" type="submit">Create Account</button>
+    <div class="auth-actions flex items-center justify-between pt-2">
+      <a class="helper-link text-xs text-muted hover:text-ink underline" href="{{ url_for('login') }}">Already have an account? Sign In</a>
+      <button class="btn primary px-5 py-2.5 bg-ink text-ground rounded-btn text-sm font-semibold hover:bg-ink/90 transition-colors cursor-pointer" type="submit">Create Account</button>
     </div>
   </form>
 </section>

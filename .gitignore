@@ -37,3 +37,11 @@ htmlcov/
 
 # Logs
 *.log
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Local runtime databases
+*.db

@@ -1,23 +1,81 @@
 {% extends "base.html" %}
-{% block title %}CYBERSPACE | URL Scanner{% endblock %}
+{% block title %}CyberScape | Link Threat Scanner{% endblock %}
 {% block content %}
-{% if not session.get('user') %}
-<div class="guest-preview-banner">
-  <div class="guest-banner-left">
-    <span class="guest-banner-badge">👁 VIEW ONLY</span>
-    <span class="guest-banner-text">You are viewing the URL Scanner in preview mode. <a href="{{ url_for('login') }}">Sign In</a> or <a href="{{ url_for('register') }}">Create an Account</a> to execute live scans and access the Dashboard.</span>
-  </div>
-  <div class="guest-banner-actions">
-    <a href="{{ url_for('login') }}" class="btn-banner-login">Sign In →</a>
+
+<!-- Root for React URL Scanner Component -->
+<div id="urlScannerReactRoot" class="w-full">
+  <!-- Semantic SSR Fallback (Replaced instantly by React on client) -->
+  <div class="w-full max-w-[1240px] mx-auto">
+    <div class="pt-8 lg:pt-14 pb-8 border-b border-line/60">
+      <span class="text-xs font-semibold uppercase tracking-wider text-muted mb-3 block font-mono">URL scanner</span>
+      <h1 class="text-[36px] sm:text-[46px] lg:text-[54px] font-bold text-ink leading-[1.05] tracking-tight mb-4">
+        Know where a link goes before you tap it.
+      </h1>
+      <p class="text-[16px] sm:text-[18px] text-muted max-w-[620px] leading-relaxed mb-6">
+        We follow redirects and query live threat feeds in an isolated sandbox pipeline without ever opening the destination page on your device.
+      </p>
+
+      <form class="w-full max-w-[760px]" onsubmit="event.preventDefault(); if (window.executeUrlScan) executeUrlScan(document.getElementById('urlInput').value);">
+        <label for="urlInput" class="block text-sm font-semibold text-ink mb-2">Destination URL</label>
+        <div class="flex items-stretch bg-panel border-[1.5px] border-ink rounded-input overflow-hidden shadow-sm focus-within:ring-2 focus-within:ring-ink">
+          <input
+            id="urlInput"
+            type="url"
+            placeholder="https://example.com/login"
+            autocomplete="url"
+            required
+            class="flex-grow bg-transparent text-ink font-mono text-[15px] px-4 py-3.5 focus:outline-none min-w-0"
+          >
+          <button
+            id="checkBtn"
+            type="submit"
+            class="bg-ink text-ground font-medium text-[15px] px-6 py-3.5 hover:bg-ink/90 transition-colors shrink-0 cursor-pointer"
+          >
+            Check link
+          </button>
+        </div>
+      </form>
+
+      <p class="text-xs text-muted mt-4">Never paste URLs containing passwords or personal info.</p>
+    </div>
+
+    <!-- Below Feature Strip -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 pt-16 mt-20 border-t border-line">
+      <div class="pt-4 border-t-2 border-ink">
+        <div class="font-mono text-sm text-muted font-semibold mb-2">01</div>
+        <h3 class="text-[20px] font-bold text-ink mb-2 leading-snug">URL scanner</h3>
+        <p class="text-[15px] text-muted leading-relaxed mb-4">Inspect complete destinations with AI phishing score, URLhaus feed matching, Geo-IP, and redirect tracing.</p>
+        <a href="{{ url_for('scanner') }}" class="text-sm font-semibold text-ink hover:underline inline-flex items-center gap-1">Explore Scanner →</a>
+      </div>
+      <div class="pt-4 border-t-2 border-ink">
+        <div class="font-mono text-sm text-muted font-semibold mb-2">02</div>
+        <h3 class="text-[20px] font-bold text-ink mb-2 leading-snug">QR scanner</h3>
+        <p class="text-[15px] text-muted leading-relaxed mb-4">Scan physical QR codes via live webcam or upload images to decode destinations and verify threat indicators.</p>
+        <a href="{{ url_for('qr_scanner') }}" class="text-sm font-semibold text-ink hover:underline inline-flex items-center gap-1">Explore QR Tool →</a>
+      </div>
+      <div class="pt-4 border-t-2 border-ink">
+        <div class="font-mono text-sm text-muted font-semibold mb-2">03</div>
+        <h3 class="text-[20px] font-bold text-ink mb-2 leading-snug">Email analyzer</h3>
+        <p class="text-[15px] text-muted leading-relaxed mb-4">Investigate email sender spoofing, validate SPF/DKIM/DMARC headers, and analyze phishing urgency NLP.</p>
+        <a href="{{ url_for('email_analyzer_page') }}" class="text-sm font-semibold text-ink hover:underline inline-flex items-center gap-1">Explore Forensics →</a>
+      </div>
+      <div class="pt-4 border-t-2 border-ink">
+        <div class="font-mono text-sm text-muted font-semibold mb-2">04</div>
+        <h3 class="text-[20px] font-bold text-ink mb-2 leading-snug">Scan history</h3>
+        <p class="text-[15px] text-muted leading-relaxed mb-4">Comprehensive security audit trails for authenticated sessions with instant PDF forensic reports.</p>
+        <a href="{{ url_for('dashboard') }}" class="text-sm font-semibold text-ink hover:underline inline-flex items-center gap-1">Open History →</a>
+      </div>
+    </section>
   </div>
 </div>
-{% endif %}
-<section class="page-head"><div class="eyebrow">URL CHECK / 01</div><h1>Check a website link</h1><p>Use the full URL you received. We check it against live threat intelligence without opening the destination.</p></section>
-<section class="scanner-box">
-  <div class="section-label"><label for="urlInput">Destination URL</label><span>HTTP or HTTPS</span></div>
-  <div class="input-row"><input id="urlInput" type="url" placeholder="https://example.com/login" autocomplete="url"><button class="btn primary" id="checkBtn">Check link <span aria-hidden="true">→</span></button></div>
-  <p class="field-help">Do not include private passwords or personal information in a URL.</p>
-  <div id="scanResult" class="result hidden"></div>
-</section>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='js/scanner.js') }}"></script>{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (window.CyberScapeReact && typeof window.CyberScapeReact.mountScannerApp === "function") {
+      window.CyberScapeReact.mountScannerApp("urlScannerReactRoot");
+    }
+  });
+</script>
+{% endblock %}

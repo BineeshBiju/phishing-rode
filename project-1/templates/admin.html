@@ -3,424 +3,742 @@
 {% block content %}
 
 <!-- Admin Section Header -->
-<section class="page-head admin-header">
+<section class="pt-8 lg:pt-12 pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
   <div>
-    <div class="eyebrow">MODULE 04 / FORENSIC AUDIT TRAILS</div>
-    <h1 class="admin-main-title">Ingress Scan History & Forensic Logs</h1>
-    <p class="admin-subtext">Stored records for authenticated sessions with instant PDF forensic threat reports.</p>
+    <span class="text-xs font-semibold uppercase tracking-wider text-muted mb-2 block font-mono">
+      FORENSIC AUDIT TRAILS<span class="sr-only"> Ingress Scan History & Forensic Logs</span>
+    </span>
+    <h1 class="text-[34px] sm:text-[44px] font-bold text-ink leading-[1.05] tracking-tight mb-2">
+      Scan history
+    </h1>
+    <p class="text-[16px] text-muted leading-relaxed max-w-[640px]">
+      Stored records for authenticated sessions with instant PDF forensic threat reports.
+    </p>
   </div>
-  <div class="header-right-meta">
-    <div class="user-pill">
-      <span class="user-icon">👤</span>
-      <span>{{ user or 'admin@cyberscape.test' }}</span>
-    </div>
+  <div class="text-xs font-mono text-muted bg-panel border border-line px-3 py-1.5 rounded-[6px] self-start md:self-auto">
+    <span>Authenticated: <b>{{ user or 'admin@cyberscape.test' }}</b></span>
   </div>
 </section>
 
-<!-- Threat Metric Overview Cards -->
-<section class="cards four admin-metric-cards">
-  <div class="metric metric-total">
-    <span class="metric-lbl">TOTAL INGRESS LOGS</span>
+<!-- Threat Metric Overview: ONE stat strip (panel background, 1px line border, 10px radius) split into 4 cells by vertical dividers -->
+<section class="w-full bg-panel border border-line rounded-panel grid grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-line mb-8 overflow-hidden shadow-sm">
+  <div class="p-6 flex flex-col font-mono text-[36px] sm:text-[44px] font-bold text-ink leading-none">
+    <span class="text-xs font-semibold uppercase tracking-wider text-muted mb-2 font-mono font-normal">Total scans<span class="sr-only"> TOTAL INGRESS LOGS</span></span>
     <b id="statTotal">{{ stats.total }}</b>
-    <span class="metric-sub">Stored Ingress Probes</span>
+    <span class="text-xs text-muted mt-2 font-sans font-normal">Stored Ingress Probes</span>
   </div>
-  <div class="metric metric-safe">
-    <span class="metric-lbl">LOW RISK VERIFIED</span>
+  <div class="p-6 flex flex-col font-mono text-[36px] sm:text-[44px] font-bold text-safe leading-none">
+    <span class="text-xs font-semibold uppercase tracking-wider text-muted mb-2 font-mono font-normal">Low risk<span class="sr-only"> LOW RISK VERIFIED</span></span>
     <b id="statSafe">{{ stats.safe }}</b>
-    <span class="metric-sub">Zero Malicious Indicators</span>
+    <span class="text-xs text-muted mt-2 font-sans font-normal">Verified Clean</span>
   </div>
-  <div class="metric metric-suspicious">
-    <span class="metric-lbl">SUSPICIOUS INGRESS</span>
+  <div class="p-6 flex flex-col font-mono text-[36px] sm:text-[44px] font-bold text-amber-500 leading-none">
+    <span class="text-xs font-semibold uppercase tracking-wider text-muted mb-2 font-mono font-normal">Suspicious<span class="sr-only"> SUSPICIOUS INGRESS</span></span>
     <b id="statSuspicious">{{ stats.suspicious }}</b>
-    <span class="metric-sub">Cloaked & Shortened Links</span>
+    <span class="text-xs text-muted mt-2 font-sans font-normal">Elevated Risk</span>
   </div>
-  <div class="metric metric-blocked">
-    <span class="metric-lbl">CRITICAL / BLOCKED</span>
+  <div class="p-6 flex flex-col font-mono text-[36px] sm:text-[44px] font-bold text-danger leading-none">
+    <span class="text-xs font-semibold uppercase tracking-wider text-muted mb-2 font-mono font-normal">Blocked<span class="sr-only"> CRITICAL / BLOCKED</span></span>
     <b id="statBlocked">{{ stats.blocked }}</b>
-    <span class="metric-sub">Active Phishing Campaigns</span>
+    <span class="text-xs text-muted mt-2 font-sans font-normal">Active Threats</span>
   </div>
 </section>
 
-<!-- Dedicated Admin History & Forensic Logs Outer Card Container -->
-<section class="forensic-logs-container rounded-2xl" id="forensicLogsSection">
-  <!-- Search Bar & Tab Filters Header Controls -->
-  <div class="logs-controls-bar">
-    <!-- Left: Search Input -->
-    <div class="search-input-box">
-      <span class="search-magnifier" aria-hidden="true">🔍︎</span>
-      <input 
-        type="text" 
-        id="logsSearchInput" 
-        placeholder="Filter by URL, host, or status..." 
-        autocomplete="off"
-        oninput="handleLogsFilter()"
+<!-- History & Forensic Logs Outer Container -->
+<section class="w-full mb-12" id="forensicLogsSection">
+  <!-- Toolbar: Filter input (340px) on left, pill filters on right -->
+  <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mb-6">
+    <!-- Left: Filter Input (340px) + Export PDF Button -->
+    <div class="flex items-center gap-2 w-full sm:w-auto">
+      <div class="w-full sm:w-[340px] flex items-center bg-panel border border-line rounded-input px-3 py-2.5 focus-within:border-ink transition-colors shadow-sm">
+        <i data-lucide="search" class="w-4 h-4 text-muted shrink-0 mr-2"></i>
+        <input 
+          type="text" 
+          id="logsSearchInput" 
+          placeholder="Filter by URL, host, or status..." 
+          autocomplete="off"
+          oninput="handleLogsFilter()"
+          class="bg-transparent text-ink text-sm flex-grow focus:outline-none placeholder:text-muted"
+        >
+        <button class="search-clear-btn text-muted hover:text-ink text-sm px-1" id="searchClearBtn" onclick="clearLogsSearch()" style="display: none;">&times;</button>
+      </div>
+      <a 
+        href="/history/export-all.pdf" 
+        target="_blank" 
+        class="inline-flex items-center gap-1.5 px-3 py-2.5 bg-panel border border-line text-ink rounded-input text-xs font-mono font-medium hover:bg-ground/60 transition-colors shadow-sm shrink-0" 
+        title="Download complete forensic audit trail as PDF"
       >
-      <button class="search-clear-btn" id="searchClearBtn" onclick="clearLogsSearch()" style="display: none;">✕</button>
+        <i data-lucide="download" class="w-3.5 h-3.5 text-muted"></i>
+        <span>Export PDF</span>
+      </a>
     </div>
 
-    <!-- Right: Filter Pills/Tabs -->
-    <div class="filter-pills-group">
-      <button class="filter-pill active" id="tabAllLogs" onclick="switchLogFilter('all')">
+    <!-- Right: Pill Filters (All / URL / QR / Email) -->
+    <div class="inline-flex p-1 bg-panel border border-line rounded-chip gap-1 self-start sm:self-auto flex-wrap">
+      <button class="filter-pill px-3.5 py-1.5 rounded-chip text-xs font-semibold transition-colors bg-ink text-ground border border-ink cursor-pointer" id="tabAllLogs" onclick="switchLogFilter('all')">
         All Logs ( <span id="countAllLogs">{{ total_count or stats.total }}</span> )
       </button>
-      <button class="filter-pill" id="tabUrlProbes" onclick="switchLogFilter('URL')">
+      <button class="filter-pill px-3.5 py-1.5 rounded-chip text-xs font-medium transition-colors bg-panel text-muted hover:text-ink border border-line cursor-pointer" id="tabUrlProbes" onclick="switchLogFilter('URL')">
         URL Probes ( <span id="countUrlProbes">{{ url_count or stats.url }}</span> )
       </button>
-      <button class="filter-pill" id="tabQrDecodes" onclick="switchLogFilter('QR')">
+      <button class="filter-pill px-3.5 py-1.5 rounded-chip text-xs font-medium transition-colors bg-panel text-muted hover:text-ink border border-line cursor-pointer" id="tabQrDecodes" onclick="switchLogFilter('QR')">
         QR Decodes ( <span id="countQrDecodes">{{ qr_count or stats.qr }}</span> )
+      </button>
+      <button class="filter-pill px-3.5 py-1.5 rounded-chip text-xs font-medium transition-colors bg-panel text-muted hover:text-ink border border-line cursor-pointer" id="tabEmailScans" onclick="switchLogFilter('EMAIL')">
+        Email Scans ( <span id="countEmailScans">{{ email_count or stats.email }}</span> )
       </button>
     </div>
   </div>
 
-  <!-- Forensic Scan History Data Table (6 Columns) -->
-  <div class="forensic-table-wrapper">
-    <table class="forensic-data-table" id="forensicLogsTable">
-      <thead>
-        <tr>
-          <th style="width: 38%;">TARGET DESTINATION</th>
-          <th style="width: 10%;">INGRESS</th>
-          <th style="width: 15%;">PHISHING RISK SCORE</th>
-          <th style="width: 14%;">THREAT STATUS</th>
-          <th style="width: 13%;">TIMESTAMP</th>
-          <th style="width: 10%; text-align: right;">FORENSIC ACTIONS</th>
-        </tr>
-      </thead>
-      <tbody id="logsTableBody">
-        {% for row in history %}
-        <tr 
-          class="log-row" 
-          data-url="{{ row.url|lower }}" 
-          data-host="{{ row.host|lower }}" 
-          data-status="{{ row.status|lower }}"
-          data-source="{{ row.source }}"
-        >
-          <!-- Column 1: TARGET DESTINATION -->
-          <td>
-            <div class="dest-cell">
-              <div class="dest-top-row">
-                <span class="protocol-tag proto-{{ row.protocol|lower }}">{{ row.protocol }}</span>
-                <a 
-                  href="javascript:void(0)" 
-                  class="dest-url-link" 
-                  onclick="inspectRecord('{{ row.url }}')" 
-                  title="{{ row.url }}"
-                >
-                  {{ row.url }}
-                </a>
+  <!-- Table inside a panel with 10px radius -->
+  <div class="bg-panel border border-line rounded-panel overflow-hidden shadow-sm">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse" id="forensicLogsTable">
+        <thead>
+          <tr class="border-b border-line bg-ground/50 text-[11px] font-mono uppercase tracking-wider text-muted">
+            <th class="py-3.5 px-4 font-semibold" style="width: 38%;">TARGET DESTINATION</th>
+            <th class="py-3.5 px-4 font-semibold" style="width: 10%;">INGRESS</th>
+            <th class="py-3.5 px-4 font-semibold" style="width: 15%;">PHISHING RISK SCORE</th>
+            <th class="py-3.5 px-4 font-semibold" style="width: 14%;">THREAT STATUS</th>
+            <th class="py-3.5 px-4 font-semibold" style="width: 13%;">TIMESTAMP</th>
+            <th class="py-3.5 px-4 font-semibold text-right" style="width: 10%;">FORENSIC ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody id="logsTableBody" class="divide-y divide-line text-sm">
+          {% for row in history %}
+          <tr 
+            class="log-row hover:bg-ground/30 transition-colors" 
+            data-url="{{ row.url|lower }}" 
+            data-host="{{ row.host|lower }}" 
+            data-status="{{ row.status|lower }}"
+            data-source="{{ row.source }}"
+          >
+            <!-- Column 1: TARGET DESTINATION -->
+            <td class="py-3.5 px-4">
+              <div class="flex flex-col">
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-ground text-ink border border-line uppercase">{{ row.protocol }}</span>
+                  <a 
+                    href="javascript:void(0)" 
+                    class="font-mono text-sm font-medium text-ink hover:underline break-all" 
+                    onclick="openInspectModal({{ row.id }})" 
+                    title="{{ row.url }}"
+                  >
+                    {{ row.url }}
+                  </a>
+                </div>
+                <div class="text-xs text-muted leading-relaxed">
+                  {% if row.source == 'EMAIL' %}
+                    <span>Sender: <b>{{ row.sender or row.host }}</b></span>
+                    {% if row.subject %}
+                    <span class="mx-1">•</span>
+                    <span>Subject: <b>{{ row.subject }}</b></span>
+                    {% endif %}
+                    <span class="mx-1">•</span>
+                    <span class="font-mono text-ink">{{ row.auth_summary }}</span>
+                  {% else %}
+                    <span>Host: <b>{{ row.host }}</b></span>
+                    <span class="mx-1">•</span>
+                    <span>Registrar: <b>{{ row.registrar }}</b></span>
+                    <span class="mx-1">•</span>
+                    <span class="font-mono">{{ row.geo_ip.city or 'Global' }}, {{ row.geo_ip.country or 'Network' }}</span>
+                  {% endif %}
+                </div>
               </div>
-              <div class="dest-sub-meta">
-                <span>Host: <b>{{ row.host }}</b></span>
-                <span class="meta-pipe">|</span>
-                <span>Registrar: <b>{{ row.registrar }}</b></span>
-                <span class="meta-pipe">|</span>
-                <span class="geo-meta-text font-mono">
-                  📍 <span>{{ row.geo_ip.city or 'Global' }}, {{ row.geo_ip.country or 'Network' }}</span>
-                </span>
-              </div>
-            </div>
-          </td>
+            </td>
 
-          <!-- Column 2: INGRESS -->
-          <td>
-            <span class="ingress-pill ingress-{{ row.source|lower }}">
-              {% if row.source == 'QR' %}
-                <span class="ingress-icon">📷</span> QR
-              {% elif row.source == 'EMAIL' %}
-                <span class="ingress-icon">✉️</span> EMAIL
+            <!-- Column 2: INGRESS -->
+            <td class="py-3.5 px-4">
+              <span class="font-mono text-xs font-semibold px-2 py-0.5 bg-ground rounded-[4px] border border-line uppercase text-ink">
+                {{ row.source }}
+              </span>
+            </td>
+
+            <!-- Column 3: PHISHING RISK SCORE (6px progress bar + mono %) -->
+            <td class="py-3.5 px-4">
+              <div class="flex items-center gap-2">
+                <div class="w-16 h-1.5 bg-line rounded-full overflow-hidden">
+                  <div 
+                    class="h-full {% if row.score >= 70 %}bg-danger{% elif row.score >= 35 %}bg-amber-500{% else %}bg-safe{% endif %}" 
+                    style="width: {{ row.score }}%;"
+                  ></div>
+                </div>
+                <span class="font-mono text-xs font-bold text-ink">{{ row.score }}%</span>
+              </div>
+            </td>
+
+            <!-- Column 4: THREAT STATUS (Bold text in risk color) -->
+            <td class="py-3.5 px-4">
+              {% if row.status == 'SAFE' %}
+                <span class="font-bold text-xs text-safe">LOW RISK</span>
+              {% elif row.status == 'MALICIOUS' %}
+                <span class="font-bold text-xs text-danger">CRITICAL / BLOCKED</span>
+              {% elif row.status == 'SUSPICIOUS' %}
+                <span class="font-bold text-xs text-amber-500">SUSPICIOUS</span>
               {% else %}
-                <span class="ingress-icon">🔗</span> URL
+                <span class="font-bold text-xs text-muted">UNVERIFIED</span>
               {% endif %}
-            </span>
-          </td>
+            </td>
 
-          <!-- Column 3: PHISHING RISK SCORE -->
-          <td>
-            <div class="risk-score-wrapper">
-              <div class="risk-bar-track">
-                <div 
-                  class="risk-bar-fill {% if row.score >= 70 %}risk-critical{% elif row.score >= 35 %}risk-elevated{% else %}risk-safe{% endif %}" 
-                  data-score="{{ row.score }}"
-                ></div>
+            <!-- Column 5: TIMESTAMP -->
+            <td class="py-3.5 px-4">
+              <span class="font-mono text-xs text-muted">{{ row.time }}</span>
+            </td>
+
+            <!-- Column 6: FORENSIC ACTIONS -->
+            <td class="py-3.5 px-4 text-right">
+              <div class="inline-flex items-center justify-end gap-2">
+                <button 
+                  type="button"
+                  class="px-2.5 py-1 border border-ink text-ink rounded-btn text-xs font-medium hover:bg-ink hover:text-ground transition-colors cursor-pointer" 
+                  onclick="openInspectModal({{ row.id }})"
+                  title="Inspect detailed telemetry"
+                >
+                  Inspect
+                </button>
+                <button 
+                  type="button"
+                  class="px-2.5 py-1 bg-ink text-ground rounded-btn text-xs font-medium hover:bg-ink/90 transition-colors cursor-pointer" 
+                  onclick="downloadRecordPdf({{ row.id }}, this)"
+                  title="Download PDF forensic report"
+                >
+                  PDF Report
+                </button>
               </div>
-              <span class="risk-score-label font-mono">{{ row.score }}%</span>
-            </div>
-          </td>
-
-          <!-- Column 4: THREAT STATUS -->
-          <td>
-            {% if row.status == 'SAFE' %}
-              <span class="status-badge-pill pill-safe">
-                <span class="status-dot-icon dot-green"></span> LOW RISK
-              </span>
-            {% elif row.status == 'MALICIOUS' %}
-              <span class="status-badge-pill pill-malicious">
-                <span class="status-dot-icon dot-red"></span> HIGH RISK
-              </span>
-            {% elif row.status == 'SUSPICIOUS' %}
-              <span class="status-badge-pill pill-suspicious">
-                <span class="status-dot-icon dot-amber"></span> ELEVATED RISK
-              </span>
-            {% else %}
-              <span class="status-badge-pill pill-unknown">
-                <span class="status-dot-icon dot-gray"></span> UNVERIFIED
-              </span>
-            {% endif %}
-          </td>
-
-          <!-- Column 5: TIMESTAMP -->
-          <td>
-            <span class="timestamp-text font-mono">{{ row.time }}</span>
-          </td>
-
-          <!-- Column 6: FORENSIC ACTIONS -->
-          <td style="text-align: right;">
-            <div class="action-buttons-group">
-              <button 
-                class="btn-action-inspect" 
-                onclick="inspectRecord('{{ row.url }}')"
-                title="Inspect in sandbox"
-              >
-                Inspect
-              </button>
-              <button 
-                class="btn-action-pdf" 
-                onclick="downloadRecordPdf('{{ row.url }}', this)"
-                title="Download PDF forensic report"
-              >
-                <span class="icon">📄</span> PDF Report
-              </button>
-            </div>
-          </td>
-        </tr>
-        {% else %}
-        <tr id="emptyRowPlaceholder">
-          <td colspan="6" class="empty-logs-cell">
-            <div class="empty-state-content">
-              <span class="empty-icon">📄</span>
-              <h4>No forensic records logged yet</h4>
-              <p>Execute URL inspections or QR scans to populate live forensic telemetry.</p>
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Dynamic Search Empty State Banner (Hidden by default) -->
-  <div id="noMatchBanner" class="no-match-banner" style="display: none;">
-    <div class="no-match-content">
-      <span class="no-match-icon">🔍︎</span>
-      <h4>No matching forensic records found</h4>
-      <p>Try refining your search term or reset the tab filters.</p>
-      <button class="btn ghost btn-sm" onclick="clearLogsSearch()">Reset Search Filter</button>
+            </td>
+          </tr>
+          {% else %}
+          <tr id="emptyRowPlaceholder">
+            <td colspan="6" class="py-12 px-4 text-center">
+              <div class="flex flex-col items-center justify-center">
+                <i data-lucide="file-text" class="w-10 h-10 text-muted mb-2 stroke-1"></i>
+                <h4 class="text-base font-bold text-ink mb-1">No forensic records logged yet</h4>
+                <p class="text-xs text-muted">Run a URL probe, QR decode, or Email forensic scan to populate the activity audit trail.</p>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
-  </div>
 
-  <!-- Table Footer Summary -->
-  <div class="logs-table-footer">
-    <div class="footer-left">
-      <span>Showing <b id="visibleCount">{{ total_count or stats.total }}</b> of {{ total_count or stats.total }} forensic records</span>
+    <!-- Dynamic Search Empty State Banner (Hidden by default) -->
+    <div id="noMatchBanner" class="py-10 px-4 text-center border-t border-line" style="display: none;">
+      <i data-lucide="search" class="w-8 h-8 text-muted mx-auto mb-2 stroke-1"></i>
+      <h4 class="text-sm font-bold text-ink mb-1">No matching forensic records found</h4>
+      <p class="text-xs text-muted mb-3">Try refining your search term or reset the tab filters.</p>
+      <button class="px-3 py-1.5 border border-line rounded-btn text-xs font-medium text-ink hover:border-ink transition-colors cursor-pointer" onclick="clearLogsSearch()">Reset Search Filter</button>
     </div>
-    <div class="footer-right">
-      <span class="security-seal">Authenticated Enterprise Forensic Audit Trail</span>
-    </div>
-  </div>
-</section>
 
-<!-- Enhanced "Inspect" Audit Overview Section (Dark Charcoal Theme #0b0f19 / #131b2e) -->
-<section class="audit-overview-container" id="auditOverviewSection" style="display: none;">
-  <div class="audit-layout">
-    <!-- Left Sidebar: Authorized Testing / Run an Audit -->
-    <aside class="audit-sidebar">
+    <!-- Table Footer Summary & Pagination Controls -->
+    <div class="border-t border-line px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted bg-ground/30">
       <div>
-        <div class="audit-sidebar-top-bar">
-          <span class="audit-sidebar-brand">CYBERSHIELD</span>
-          <button type="button" class="btn-audit-back" onclick="closeAuditOverview()">
-            <span>←</span> Back to Logs
-          </button>
-        </div>
-
-        <div>
-          <span class="audit-sidebar-eyebrow">AUTHORIZED TESTING</span>
-          <h2 class="audit-sidebar-title">Run an audit</h2>
-          <p class="audit-sidebar-desc">
-            Check security headers, cookies, and CORS settings for a target you are authorized to test.
-          </p>
-
-          <form id="auditSidebarForm" onsubmit="handleSidebarAuditSubmit(event)">
-            <div class="audit-form-group">
-              <label class="audit-form-label">Target URL</label>
-              <input 
-                type="text" 
-                id="auditTargetUrlInput" 
-                class="audit-form-input" 
-                placeholder="www.google.com" 
-                required
-              >
-            </div>
-
-            <label class="audit-checkbox-label">
-              <input type="checkbox" id="auditAuthCheck" checked required>
-              <span>I own this target or have permission to test it.</span>
-            </label>
-
-            <button type="submit" class="btn-audit-submit" id="btnAuditSidebarSubmit">
-              Run security audit
-            </button>
-          </form>
-        </div>
-
-        <div class="audit-sidebar-section">
-          <h3 class="audit-sidebar-subheading">View a saved report</h3>
-          <input type="file" id="auditJsonFileInput" class="audit-file-input" accept=".json" onchange="handleAuditJsonUpload(event)">
-          <textarea id="auditJsonPasteInput" class="audit-textarea" rows="3" placeholder="Or paste report JSON here"></textarea>
-          <button type="button" class="btn-audit-load" onclick="handleAuditJsonPaste()">
-            Load report
-          </button>
-        </div>
+        Showing <b id="visibleCount" class="text-ink">{{ total_count or stats.total }}</b> of {{ total_count or stats.total }} forensic records
       </div>
-
-      <div class="audit-sidebar-footer">
-        Audits are sent from this computer. This app listens on localhost only.
+      <div class="flex items-center gap-3" id="paginationBar">
+        <button type="button" class="px-2.5 py-1 border border-line rounded-btn hover:border-ink transition-colors disabled:opacity-40" id="btnPrevPage" onclick="changeLogPage(-1)" disabled>← Prev</button>
+        <span class="font-mono">
+          Page <b id="currentPageNum" class="text-ink">1</b> of <b id="totalPageNum" class="text-ink">1</b>
+        </span>
+        <button type="button" class="px-2.5 py-1 border border-line rounded-btn hover:border-ink transition-colors disabled:opacity-40" id="btnNextPage" onclick="changeLogPage(1)" disabled>Next →</button>
+        <button type="button" class="px-2.5 py-1 border border-line rounded-btn hover:border-ink transition-colors flex items-center gap-1 cursor-pointer" onclick="fetchLiveDashboardData()" title="Fetch live statistics from database">
+          <i data-lucide="refresh-cw" class="w-3 h-3"></i> Refresh
+        </button>
       </div>
-    </aside>
-
-    <!-- Main Content Panel -->
-    <main class="audit-main">
-      <!-- Breadcrumb & Top Controls -->
-      <div class="audit-header-bar">
-        <div>
-          <div class="audit-eyebrow">SECURITY POSTURE / REPORTS</div>
-          <h1 class="audit-title">Audit overview</h1>
-          <p class="audit-subtitle">One clear view of the security headers, cookies, and CORS checks in your report.</p>
-        </div>
-        <div class="audit-header-right">
-          <button type="button" class="btn-audit-back" onclick="closeAuditOverview()">
-            <span>←</span> Back to Scan History
-          </button>
-          <span class="audit-live-badge">Live audit | 1 target(s)</span>
-        </div>
-      </div>
-
-      <!-- 4 Summary Metric Counters -->
-      <div class="audit-metrics-grid">
-        <div class="audit-metric-card">
-          <span class="lbl">TARGETS</span>
-          <span class="val" id="auditStatTargets">1</span>
-          <span class="sub">in this report</span>
-        </div>
-        <div class="audit-metric-card">
-          <span class="lbl">CHECKS PASSED</span>
-          <span class="val val-passed" id="auditStatPassed">0</span>
-          <span class="sub">no issue reported</span>
-        </div>
-        <div class="audit-metric-card">
-          <span class="lbl">WARNINGS</span>
-          <span class="val val-warnings" id="auditStatWarnings">0</span>
-          <span class="sub">review recommended</span>
-        </div>
-        <div class="audit-metric-card">
-          <span class="lbl">FAILURES</span>
-          <span class="val val-failures" id="auditStatFailures">0</span>
-          <span class="sub">attention required</span>
-        </div>
-      </div>
-
-      <!-- 1. Risk Status & Explanation Card -->
-      <div class="audit-risk-card">
-        <div class="audit-risk-top">
-          <div>
-            <div class="audit-eyebrow" style="margin-bottom: 2px;">COMPREHENSIVE RISK VERDICT</div>
-            <div class="audit-risk-badge-group">
-              <span class="audit-risk-pill pill-high" id="auditThreatStatusPill">
-                <span class="status-dot-icon dot-red"></span> <span id="auditThreatStatusText">HIGH RISK</span>
-              </span>
-              <span style="font-size: 0.75rem; color: #94a3b8;">
-                Ingress: <b id="auditTargetIngress" style="color: #f1f5f9;">URL</b>
-              </span>
-              <span style="color: #475569;">|</span>
-              <span id="auditTargetTimestamp" style="font-family: var(--font-mono); font-size: 0.75rem; color: #94a3b8;"></span>
-            </div>
-          </div>
-
-          <div class="audit-score-gauge">
-            <div class="audit-score-text">
-              <span class="score-lbl">PHISHING RISK SCORE</span>
-              <span class="score-num font-mono" id="auditRiskScoreValue">0%</span>
-            </div>
-            <div class="audit-score-bar-track">
-              <div class="audit-score-bar-fill" id="auditRiskScoreBar" style="width: 0%;"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Dedicated "Risk Analysis / Why this score?" Section -->
-        <div class="audit-reasons-section">
-          <div class="audit-reasons-title-row">
-            <span>🛡️</span>
-            <h3 class="audit-reasons-title">Risk Analysis / Why this score?</h3>
-          </div>
-          <div class="audit-reasons-grid" id="auditReasonsGrid">
-            <!-- Dynamically populated reason cards -->
-          </div>
-        </div>
-      </div>
-
-      <!-- 2. Target details & Security Headers Checklist -->
-      <div class="audit-target-card">
-        <div class="audit-target-head">
-          <div>
-            <h2 class="audit-target-url-title font-mono" id="auditTargetUrlHeading">https://example.com</h2>
-            <div class="audit-target-meta-row">
-              <span id="auditTargetSummaryFailures" style="color: #f87171; font-weight: 700;">0 failures</span>
-              <span>•</span>
-              <span id="auditTargetSummaryWarnings" style="color: #fbbf24; font-weight: 700;">0 warnings</span>
-              <span>•</span>
-              <span>Final URL: <code id="auditTargetFinalUrl" class="font-mono" style="color: #cbd5e1;">https://example.com</code></span>
-              <span>•</span>
-              <span id="auditTargetHttpStatus" style="padding: 2px 6px; border-radius: 4px; background: #0b0f19; font-family: var(--font-mono); font-size: 0.6875rem; color: #34d399;">HTTP 200</span>
-            </div>
-          </div>
-
-          <div class="audit-target-filter-wrap">
-            <label style="font-size: 0.75rem; color: #94a3b8;">Filter:</label>
-            <select class="audit-filter-select" id="auditChecksFilterSelect" onchange="filterAuditChecks(this.value)">
-              <option value="all">All checks</option>
-              <option value="passed">Checks Passed</option>
-              <option value="warnings">Warnings</option>
-              <option value="failures">Failures</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Detailed Check Items List -->
-        <div class="audit-checks-list" id="auditChecksListContainer">
-          <!-- Dynamically populated checklist items -->
-        </div>
-
-        <!-- Action Buttons -->
-        <div class="audit-actions-bar">
-          <button type="button" class="btn-audit-action primary" id="btnAuditDownloadPdf" onclick="downloadCurrentAuditPdf()">
-            <span>📄</span> Download Forensic PDF Report
-          </button>
-          <button type="button" class="btn-audit-action secondary" onclick="copyCurrentAuditJson()">
-            <span>📋</span> Copy Audit JSON
-          </button>
-          <button type="button" class="btn-audit-action secondary" onclick="rescanCurrentAuditTarget()">
-            <span>🔍</span> Rescan in Sandbox
-          </button>
-        </div>
-      </div>
-    </main>
+    </div>
   </div>
 </section>
+
+<!-- Security Posture Audit Overview Section -->
+<section id="auditOverviewSection" class="mt-16 pt-12 border-t border-line">
+  <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+    <div>
+      <span class="text-xs font-semibold uppercase tracking-wider text-muted mb-2 block font-mono">AUTHORIZED TESTING / 04</span>
+      <h2 class="text-[28px] sm:text-[34px] font-bold text-ink leading-tight tracking-tight">Audit overview</h2>
+      <p class="text-sm text-muted max-w-[620px] mt-1 leading-relaxed">
+        Verify security headers (HSTS, CSP, X-Frame-Options), cookie security flags, CORS policies, and TLS transport on authorized domains.
+      </p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-8 items-start">
+    <!-- Left Sidebar: Run an audit form -->
+    <div class="bg-panel border border-line rounded-panel p-6 shadow-sm">
+      <span class="text-xs font-mono font-bold uppercase tracking-wider text-muted mb-1 block">TARGET SPECIFICATION</span>
+      <h3 class="text-lg font-bold text-ink mb-3">Run an audit</h3>
+      <p class="text-xs text-muted leading-relaxed mb-4">
+        Check security headers, cookies, and CORS settings for a target domain you own or are explicitly authorized to test.
+      </p>
+
+      <form id="auditSidebarForm" onsubmit="handleSidebarAuditSubmit(event)">
+        <div class="mb-4">
+          <label for="auditTargetUrlInput" class="block text-xs font-semibold text-ink mb-1.5 font-mono">TARGET URL</label>
+          <input
+            type="url"
+            id="auditTargetUrlInput"
+            required
+            placeholder="https://example.com"
+            class="w-full bg-ground border border-line rounded-input px-3.5 py-2.5 text-xs font-mono text-ink placeholder:text-muted/60 focus:outline-none focus:border-ink transition-colors"
+          >
+        </div>
+
+        <label class="flex items-start gap-2.5 mb-5 cursor-pointer text-xs text-muted leading-snug">
+          <input type="checkbox" id="auditAuthCheck" checked required class="mt-0.5 rounded border-line text-ink focus:ring-ink">
+          <span>I own this target or have permission to test it.</span>
+        </label>
+
+        <button
+          type="submit"
+          id="btnAuditSidebarSubmit"
+          class="w-full py-2.5 px-4 bg-ink text-ground rounded-btn text-xs font-semibold hover:bg-ink/90 active:bg-ink transition-colors cursor-pointer flex items-center justify-center gap-2"
+        >
+          <span>Run security audit</span>
+        </button>
+      </form>
+
+      <div class="mt-6 pt-4 border-t border-line text-[11px] font-mono text-muted leading-relaxed">
+        SSRF Guard: Internal networks (127.0.0.1, 10.0.0.0/8, 192.168.0.0/16, loopback) are blocked by default.
+      </div>
+    </div>
+
+    <!-- Right Main Panel: Audit results or clean empty state -->
+    <div class="flex flex-col">
+      <!-- Empty state before running audit -->
+      <div id="auditEmptyState" class="bg-panel border border-line rounded-panel p-10 flex flex-col items-center justify-center text-center">
+        <i data-lucide="shield" class="w-10 h-10 text-muted mb-3 stroke-1"></i>
+        <h4 class="text-base font-bold text-ink mb-1">No security audit executed yet</h4>
+        <p class="text-xs text-muted max-w-[420px] leading-relaxed mb-4">
+          Enter an authorized destination URL on the left and run a security audit to inspect live HTTP headers, cookies, and CORS configuration.
+        </p>
+      </div>
+
+      <!-- Loading State -->
+      <div id="auditLoadingState" style="display: none;" class="bg-ink rounded-panel p-8 text-ground text-center">
+        <span class="inline-block w-3 h-3 rounded-full bg-dangerSoft animate-pulse mb-3"></span>
+        <h4 class="text-base font-bold mb-1">Running Live Security Posture Audit...</h4>
+        <p class="text-xs text-line/70 font-mono">Evaluating HSTS, CSP, X-Frame-Options, cookie flags & CORS configuration...</p>
+      </div>
+
+      <!-- Result View -->
+      <div id="auditResultsContent" style="display: none;" class="flex flex-col gap-6">
+        <!-- 4 Metric Counters -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div class="bg-panel border border-line rounded-panel p-4">
+            <span class="block text-[11px] font-mono uppercase text-muted font-semibold mb-1">TARGETS</span>
+            <span class="font-mono text-2xl font-bold text-ink" id="auditStatTargets">1</span>
+            <span class="block text-[10px] text-muted mt-0.5">inspected</span>
+          </div>
+          <div class="bg-panel border border-line rounded-panel p-4">
+            <span class="block text-[11px] font-mono uppercase text-muted font-semibold mb-1">CHECKS PASSED</span>
+            <span class="font-mono text-2xl font-bold text-safe" id="auditStatPassed">0</span>
+            <span class="block text-[10px] text-muted mt-0.5">no issue reported</span>
+          </div>
+          <div class="bg-panel border border-line rounded-panel p-4">
+            <span class="block text-[11px] font-mono uppercase text-muted font-semibold mb-1">WARNINGS</span>
+            <span class="font-mono text-2xl font-bold text-amber-500" id="auditStatWarnings">0</span>
+            <span class="block text-[10px] text-muted mt-0.5">review recommended</span>
+          </div>
+          <div class="bg-panel border border-line rounded-panel p-4">
+            <span class="block text-[11px] font-mono uppercase text-muted font-semibold mb-1">FAILURES</span>
+            <span class="font-mono text-2xl font-bold text-danger" id="auditStatFailures">0</span>
+            <span class="block text-[10px] text-muted mt-0.5">attention required</span>
+          </div>
+        </div>
+
+        <!-- Risk Summary Card -->
+        <div class="bg-ink rounded-panel p-6 text-ground shadow-sm">
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-inkLine">
+            <div>
+              <span class="text-[11px] uppercase tracking-wider text-line/60 font-semibold font-mono block mb-1">COMPREHENSIVE RISK VERDICT</span>
+              <div class="flex items-center gap-3">
+                <span id="auditThreatStatusPill" class="px-2.5 py-1 rounded text-xs font-bold font-mono uppercase bg-safe text-ground">
+                  <span id="auditThreatStatusText">LOW RISK</span>
+                </span>
+                <span class="text-xs text-line/70 font-mono">Ingress: <b id="auditTargetIngress" class="text-ground">AUDIT</b></span>
+                <span class="text-line/40">|</span>
+                <span id="auditTargetTimestamp" class="text-xs text-line/70 font-mono"></span>
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="block text-[11px] uppercase tracking-wider text-line/60 font-semibold font-mono">PHISHING RISK SCORE</span>
+              <span class="font-mono text-3xl font-bold text-ground" id="auditRiskScoreValue">0%</span>
+            </div>
+          </div>
+
+          <!-- Why this score? -->
+          <div class="pt-4">
+            <h3 class="text-xs uppercase tracking-wider text-line/80 font-semibold font-mono block mb-2">Why this score?</h3>
+            <div id="auditReasonsGrid" class="space-y-1.5 text-xs text-line/80 font-mono"></div>
+          </div>
+        </div>
+
+        <!-- Target Checklist Details -->
+        <div class="bg-panel border border-line rounded-panel p-6">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-line mb-4">
+            <div>
+              <h4 id="auditTargetUrlHeading" class="font-mono text-sm font-bold text-ink break-all"></h4>
+              <div class="flex items-center gap-2 text-xs text-muted font-mono mt-1">
+                <span id="auditTargetSummaryFailures" class="text-danger font-bold">0 failures</span>
+                <span>•</span>
+                <span id="auditTargetSummaryWarnings" class="text-amber-500 font-bold">0 warnings</span>
+                <span>•</span>
+                <span id="auditTargetHttpStatus" class="px-1.5 py-0.5 rounded bg-ground text-ink border border-line font-bold">HTTP 200</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <label for="auditChecksFilterSelect" class="text-xs text-muted font-mono">Filter:</label>
+              <select id="auditChecksFilterSelect" onchange="filterAuditChecks(this.value)" class="text-xs font-mono bg-ground border border-line rounded px-2 py-1 text-ink focus:outline-none">
+                <option value="all">All checks</option>
+                <option value="passed">Checks Passed</option>
+                <option value="warning">Warnings</option>
+                <option value="failure">Failures</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Checklist Container -->
+          <div id="auditChecksListContainer" class="divide-y divide-line/60"></div>
+
+          <!-- Action buttons -->
+          <div class="mt-6 pt-4 border-t border-line flex flex-wrap items-center gap-3">
+            <button type="button" id="btnAuditDownloadPdf" onclick="downloadCurrentAuditPdf()" class="py-2 px-4 bg-ink text-ground rounded-btn text-xs font-semibold hover:bg-ink/90 transition-colors cursor-pointer">
+              Download Forensic PDF Report
+            </button>
+            <button type="button" onclick="copyCurrentAuditJson()" class="py-2 px-4 bg-panel border border-line rounded-btn text-xs font-semibold text-ink hover:border-ink transition-colors cursor-pointer">
+              Copy Audit JSON
+            </button>
+            <button type="button" onclick="rescanCurrentAuditTarget()" class="py-2 px-4 bg-panel border border-line rounded-btn text-xs font-semibold text-ink hover:border-ink transition-colors cursor-pointer">
+              Rescan Target
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Inspect Forensic Telemetry Modal -->
+<div id="inspectModal" class="fixed inset-0 z-50 bg-ink/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto" style="display: none;" onclick="handleModalBackdropClick(event)">
+  <div class="bg-panel border border-line rounded-panel shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden my-auto" onclick="event.stopPropagation()">
+    <!-- Modal Header -->
+    <div class="p-4 sm:p-5 border-b border-line flex items-start justify-between gap-3 bg-ground/40">
+      <div class="flex flex-col gap-1 min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span id="inspectModalTypeBadge" class="font-mono text-[11px] font-bold px-2 py-0.5 rounded bg-ink text-ground uppercase">URL</span>
+          <span id="inspectModalScanId" class="font-mono text-xs text-muted">Scan #0</span>
+          <span class="text-xs text-muted">•</span>
+          <span id="inspectModalTime" class="font-mono text-xs text-muted">--</span>
+        </div>
+        <h3 id="inspectModalTarget" class="text-base sm:text-lg font-bold text-ink font-mono break-all line-clamp-2">Target Destination</h3>
+      </div>
+      <button type="button" onclick="closeInspectModal()" class="p-1.5 text-muted hover:text-ink rounded-btn hover:bg-ground transition-colors cursor-pointer" title="Close Modal (Esc)">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <!-- Modal Scrollable Content -->
+    <div class="p-4 sm:p-6 overflow-y-auto space-y-6 flex-1 text-ink">
+      <!-- Loading State -->
+      <div id="inspectLoadingState" class="py-16 text-center">
+        <div class="inline-block w-8 h-8 rounded-full border-2 border-ink border-t-transparent animate-spin mb-3"></div>
+        <h4 class="text-sm font-bold text-ink">Retrieving Full Forensic Telemetry...</h4>
+        <p class="text-xs font-mono text-muted mt-1">Extracting heuristic indicators, threat intelligence & DNS routing</p>
+      </div>
+
+      <!-- Error State -->
+      <div id="inspectErrorState" style="display: none;" class="p-6 text-center border border-danger/30 rounded-btn bg-danger/10 text-danger text-xs font-mono">
+        <i data-lucide="alert-octagon" class="w-8 h-8 mx-auto mb-2 text-danger"></i>
+        <div id="inspectErrorMessage" class="font-bold">Failed to load forensic details.</div>
+      </div>
+
+      <!-- Content State -->
+      <div id="inspectContentState" style="display: none;" class="space-y-6">
+        <!-- Legacy Scan Alert (hidden by default) -->
+        <div id="inspectLegacyAlert" style="display: none;" class="p-4 border border-amber-500/30 rounded-panel bg-amber-500/10 text-xs text-ink flex items-start gap-3">
+          <i data-lucide="info" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5"></i>
+          <div class="flex-1">
+            <h5 class="font-bold text-amber-700 mb-0.5">Legacy Audit Record</h5>
+            <p class="text-muted leading-relaxed">This record was scanned prior to comprehensive telemetry logging. Key audit details and network records are displayed below.</p>
+          </div>
+        </div>
+
+        <!-- Summary & Verdict Card -->
+        <div class="border border-line rounded-panel p-5 bg-ground/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+          <div class="flex items-center gap-4">
+            <!-- Score Gauge Box -->
+            <div id="inspectScoreBox" class="w-16 h-16 rounded-panel border border-line bg-panel flex flex-col items-center justify-center shrink-0">
+              <span id="inspectScoreValue" class="font-mono text-xl font-bold text-ink">0%</span>
+              <span class="text-[9px] font-mono text-muted uppercase">Risk Score</span>
+            </div>
+            <div>
+              <div class="flex items-center gap-2 mb-1">
+                <span id="inspectVerdictBadge" class="px-2.5 py-0.5 rounded text-xs font-bold font-mono uppercase bg-safe text-ground">LOW RISK</span>
+                <span id="inspectLevelText" class="text-xs font-medium text-muted">Safe Target</span>
+              </div>
+              <p id="inspectVerdictSummary" class="text-xs text-muted max-w-md leading-relaxed">No threat indicators observed during audit.</p>
+            </div>
+          </div>
+
+          <!-- Severity Count Badges -->
+          <div class="flex items-center gap-2 flex-wrap">
+            <span id="inspectCountCritical" class="px-2 py-1 rounded text-xs font-mono font-bold bg-danger/10 text-danger border border-danger/30">0 Critical</span>
+            <span id="inspectCountHigh" class="px-2 py-1 rounded text-xs font-mono font-bold bg-danger/10 text-danger border border-danger/30">0 High</span>
+            <span id="inspectCountMedium" class="px-2 py-1 rounded text-xs font-mono font-bold bg-amber-500/10 text-amber-600 border border-amber-500/30">0 Medium</span>
+            <span id="inspectCountLow" class="px-2 py-1 rounded text-xs font-mono font-bold bg-muted/10 text-muted border border-line">0 Low</span>
+          </div>
+        </div>
+
+        <!-- Section: Problem Findings -->
+        <div>
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-xs font-bold font-mono uppercase tracking-wider text-muted">Forensic Findings & Detected Anomalies</h4>
+            <span id="inspectFindingsCountBadge" class="text-xs font-mono text-muted">0 findings</span>
+          </div>
+          <div id="inspectFindingsContainer" class="space-y-3">
+            <!-- Dynamically populated finding cards -->
+          </div>
+        </div>
+
+        <!-- Section: Verified Passed Checks -->
+        <div>
+          <h4 class="text-xs font-bold font-mono uppercase tracking-wider text-muted mb-3">Verified Security Safeguards & Passed Checks</h4>
+          <div id="inspectChecksContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <!-- Dynamically populated passed checks -->
+          </div>
+        </div>
+
+        <!-- Section: Technical & Infrastructure Telemetry -->
+        <div>
+          <h4 class="text-xs font-bold font-mono uppercase tracking-wider text-muted mb-3">Infrastructure & Telemetry Breakdown</h4>
+          <div id="inspectTechnicalGrid" class="border border-line rounded-panel divide-y divide-line bg-panel text-xs">
+            <!-- Dynamically populated technical rows -->
+          </div>
+        </div>
+
+        <!-- Section: Collapsible Raw JSON -->
+        <details class="border border-line rounded-panel bg-ground/20">
+          <summary class="p-3.5 text-xs font-mono font-medium text-muted hover:text-ink cursor-pointer select-none flex items-center justify-between">
+            <span>View Full Raw Telemetry JSON Payload</span>
+            <button type="button" class="px-2.5 py-1 text-[11px] border border-line rounded-btn bg-panel text-ink hover:border-ink transition-colors cursor-pointer" onclick="copyInspectJson(event)">Copy JSON</button>
+          </summary>
+          <pre id="inspectRawJson" class="p-4 text-[11px] font-mono text-ink overflow-x-auto max-h-72 border-t border-line bg-panel leading-relaxed"></pre>
+        </details>
+      </div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div class="p-4 sm:p-5 border-t border-line bg-ground/40 flex flex-wrap items-center justify-between gap-3">
+      <div class="text-xs text-muted font-mono" id="inspectModalFooterMeta">
+        Forensic Intelligence Report • CyberScape
+      </div>
+      <div class="flex items-center gap-2.5">
+        <button type="button" onclick="closeInspectModal()" class="px-3.5 py-2 border border-line text-xs font-medium rounded-btn hover:border-ink text-ink bg-panel transition-colors cursor-pointer">
+          Close
+        </button>
+        <button type="button" id="btnInspectDownloadPdf" onclick="downloadInspectPdf(this)" class="px-4 py-2 bg-ink text-ground text-xs font-semibold rounded-btn hover:bg-ink/90 transition-colors flex items-center gap-1.5 cursor-pointer">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i> Download PDF Forensic Report
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script id="historyRecordsData" type="text/plain">{{ history_json|safe }}</script>
 <script>
 let currentLogFilter = 'all';
+let currentAuditReport = null;
+
+// ==========================================
+// Security Posture Audit Functions
+// ==========================================
+async function handleSidebarAuditSubmit(event) {
+  if (event) event.preventDefault();
+  const input = document.getElementById("auditTargetUrlInput");
+  const authCheck = document.getElementById("auditAuthCheck");
+  const btn = document.getElementById("btnAuditSidebarSubmit");
+  const url = (input ? input.value : "").trim();
+
+  if (!url) return;
+  if (!authCheck || !authCheck.checked) {
+    alert("Please confirm the authorization permission checkbox before auditing.");
+    return;
+  }
+
+  const origBtnText = btn ? btn.innerHTML : "Run security audit";
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="inline-block w-3 h-3 rounded-full border-2 border-ground border-t-transparent animate-spin mr-1.5"></span> Auditing...';
+  }
+
+  const emptyState = document.getElementById("auditEmptyState");
+  const loadingState = document.getElementById("auditLoadingState");
+  const resultsContent = document.getElementById("auditResultsContent");
+
+  if (emptyState) emptyState.style.display = "none";
+  if (loadingState) loadingState.style.display = "block";
+  if (resultsContent) resultsContent.style.display = "none";
+
+  try {
+    const res = await fetch("/api/audit", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify({ url: url, authorized: true })
+    });
+
+    if (!res.ok) {
+      let errMsg = "Audit request failed.";
+      try {
+        const errJson = await res.json();
+        errMsg = errJson.error || errMsg;
+      } catch (e) {}
+      throw new Error(errMsg);
+    }
+
+    const data = await res.json();
+    currentAuditReport = data;
+    renderAuditReport(data);
+
+    if (loadingState) loadingState.style.display = "none";
+    if (resultsContent) resultsContent.style.display = "flex";
+  } catch (err) {
+    if (loadingState) loadingState.style.display = "none";
+    if (emptyState) {
+      emptyState.style.display = "flex";
+      emptyState.innerHTML = `
+        <div class="text-danger p-4 border border-danger/30 rounded-input bg-danger/10 text-xs font-mono w-full text-center">
+          <b>Audit Error:</b> ${escapeHtml(err.message)}
+        </div>
+      `;
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = origBtnText;
+    }
+  }
+}
+
+function renderAuditReport(data) {
+  if (!data) return;
+  const setTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+
+  setTxt("auditStatTargets", (data.summary && data.summary.targets) || 1);
+  setTxt("auditStatPassed", (data.summary && data.summary.passed) || 0);
+  setTxt("auditStatWarnings", (data.summary && data.summary.warnings) || 0);
+  setTxt("auditStatFailures", (data.summary && data.summary.failures) || 0);
+
+  const statusText = data.threat_status || "LOW RISK";
+  const isMalicious = statusText === "HIGH RISK" || (data.status === "MALICIOUS");
+  const isSuspicious = statusText === "ELEVATED RISK" || (data.status === "SUSPICIOUS");
+
+  const pill = document.getElementById("auditThreatStatusPill");
+  if (pill) {
+    pill.className = "px-2.5 py-1 rounded text-xs font-bold font-mono uppercase " +
+      (isMalicious ? "bg-danger text-ground" : (isSuspicious ? "bg-amber-500 text-ground" : "bg-safe text-ground"));
+  }
+  setTxt("auditThreatStatusText", statusText);
+  setTxt("auditTargetTimestamp", data.timestamp || "");
+  setTxt("auditRiskScoreValue", `${data.risk_score || 0}%`);
+
+  setTxt("auditTargetUrlHeading", data.target_url || "");
+  setTxt("auditTargetSummaryFailures", `${(data.summary && data.summary.failures) || 0} failures`);
+  setTxt("auditTargetSummaryWarnings", `${(data.summary && data.summary.warnings) || 0} warnings`);
+  setTxt("auditTargetHttpStatus", `HTTP ${data.http_status || 200}`);
+
+  // Reasons / Why this score?
+  const reasonsGrid = document.getElementById("auditReasonsGrid");
+  if (reasonsGrid) {
+    const reasons = data.reasons || [];
+    if (reasons.length > 0) {
+      reasonsGrid.innerHTML = reasons.map(r => `
+        <div class="flex items-start gap-2 py-1 text-xs">
+          <span class="text-line font-bold">•</span>
+          <span class="text-line/90 leading-relaxed">${escapeHtml(r)}</span>
+        </div>
+      `).join("");
+    } else {
+      reasonsGrid.innerHTML = '<span class="text-line/60 text-xs">No posture anomalies detected.</span>';
+    }
+  }
+
+  renderAuditChecksList(data.checks || []);
+}
+
+function renderAuditChecksList(checks, filter = "all") {
+  const container = document.getElementById("auditChecksListContainer");
+  if (!container) return;
+
+  const filtered = (checks || []).filter(c => {
+    if (filter === "all") return true;
+    return c.status === filter;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="py-4 text-xs font-mono text-muted text-center">No checks matching selected filter.</div>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(c => {
+    let badgeClass = "bg-safe/20 text-safe border border-safe/40";
+    let badgeLabel = "PASSED";
+    if (c.status === "failure") {
+      badgeClass = "bg-danger/20 text-danger border border-danger/40";
+      badgeLabel = "FAILURE";
+    } else if (c.status === "warning") {
+      badgeClass = "bg-amber-500/20 text-amber-500 border border-amber-500/40";
+      badgeLabel = "WARNING";
+    }
+
+    return `
+      <div class="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <div class="flex items-center gap-2 mb-1">
+            <span class="font-mono font-bold px-1.5 py-0.5 rounded text-[10px] uppercase ${badgeClass}">${badgeLabel}</span>
+            <span class="text-xs font-bold text-ink">${escapeHtml(c.name)}</span>
+            <span class="text-[11px] font-mono text-muted">(${escapeHtml(c.category)})</span>
+          </div>
+          <p class="text-xs text-muted leading-relaxed font-mono">${escapeHtml(c.details)}</p>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function filterAuditChecks(filterVal) {
+  if (currentAuditReport && currentAuditReport.checks) {
+    renderAuditChecksList(currentAuditReport.checks, filterVal);
+  }
+}
+
+function copyCurrentAuditJson() {
+  if (currentAuditReport) {
+    if (typeof window.copyReportJson === "function") {
+      window.copyReportJson(currentAuditReport);
+    } else {
+      navigator.clipboard.writeText(JSON.stringify(currentAuditReport, null, 2));
+      alert("Audit JSON copied to clipboard!");
+    }
+  }
+}
+
+function downloadCurrentAuditPdf() {
+  if (currentAuditReport && currentAuditReport.target_url) {
+    if (typeof window.downloadForensicReport === "function") {
+      window.downloadForensicReport(currentAuditReport.target_url);
+    } else {
+      window.location.href = "/generate-report?url=" + encodeURIComponent(currentAuditReport.target_url);
+    }
+  }
+}
+
+function rescanCurrentAuditTarget() {
+  handleSidebarAuditSubmit(null);
+}
 
 function initRiskBars() {
   document.querySelectorAll(".risk-bar-fill[data-score]").forEach(function(el) {
@@ -438,62 +756,46 @@ function escapeJsString(str) {
 // ==========================================
 // Forensic Logs Table Filter & Search Logic
 // ==========================================
+let currentInspectRecordId = null;
+let currentInspectData = null;
+
 function switchLogFilter(filterType) {
   currentLogFilter = filterType;
   
   const tabAll = document.getElementById("tabAllLogs");
   const tabUrl = document.getElementById("tabUrlProbes");
   const tabQr = document.getElementById("tabQrDecodes");
+  const tabEmail = document.getElementById("tabEmailScans");
 
-  [tabAll, tabUrl, tabQr].forEach(t => { if(t) t.classList.remove("active"); });
+  [tabAll, tabUrl, tabQr, tabEmail].forEach(t => {
+    if (t) {
+      t.className = "filter-pill px-3.5 py-1.5 rounded-chip text-xs font-medium transition-colors bg-panel text-muted hover:text-ink border border-line cursor-pointer";
+    }
+  });
 
-  if (filterType === 'URL' && tabUrl) tabUrl.classList.add("active");
-  else if (filterType === 'QR' && tabQr) tabQr.classList.add("active");
-  else if (tabAll) tabAll.classList.add("active");
+  let activeTab = tabAll;
+  if (filterType === 'URL') activeTab = tabUrl;
+  else if (filterType === 'QR') activeTab = tabQr;
+  else if (filterType === 'EMAIL') activeTab = tabEmail;
 
-  handleLogsFilter();
+  if (activeTab) {
+    activeTab.className = "filter-pill px-3.5 py-1.5 rounded-chip text-xs font-semibold transition-colors bg-ink text-ground border border-ink cursor-pointer";
+  }
+
+  fetchLiveDashboardData(1);
 }
 
+let filterDebounceTimer = null;
 function handleLogsFilter() {
   const searchInput = document.getElementById("logsSearchInput");
   const query = (searchInput.value || "").trim().toLowerCase();
   const clearBtn = document.getElementById("searchClearBtn");
   if (clearBtn) clearBtn.style.display = query.length > 0 ? "block" : "none";
 
-  const rows = document.querySelectorAll("#logsTableBody tr.log-row");
-  let visibleCount = 0;
-
-  rows.forEach(row => {
-    const rowUrl = row.getAttribute("data-url") || "";
-    const rowHost = row.getAttribute("data-host") || "";
-    const rowStatus = row.getAttribute("data-status") || "";
-    const rowSource = row.getAttribute("data-source") || "";
-
-    const matchesQuery = !query || rowUrl.includes(query) || rowHost.includes(query) || rowStatus.includes(query);
-    const matchesTab = currentLogFilter === 'all' || rowSource === currentLogFilter;
-
-    if (matchesQuery && matchesTab) {
-      row.style.display = "";
-      visibleCount++;
-    } else {
-      row.style.display = "none";
-    }
-  });
-
-  const visibleCountEl = document.getElementById("visibleCount");
-  if (visibleCountEl) visibleCountEl.textContent = visibleCount;
-
-  const noMatchBanner = document.getElementById("noMatchBanner");
-  const table = document.getElementById("forensicLogsTable");
-  if (noMatchBanner && table) {
-    if (visibleCount === 0 && rows.length > 0) {
-      noMatchBanner.style.display = "block";
-      table.style.display = "none";
-    } else {
-      noMatchBanner.style.display = "none";
-      table.style.display = "";
-    }
-  }
+  clearTimeout(filterDebounceTimer);
+  filterDebounceTimer = setTimeout(() => {
+    fetchLiveDashboardData(1);
+  }, 150);
 }
 
 function clearLogsSearch() {
@@ -502,44 +804,537 @@ function clearLogsSearch() {
   handleLogsFilter();
 }
 
-function inspectRecord(url) {
-  try {
-    sessionStorage.setItem("pendingScanUrl", url);
-    window.location.href = "/scanner";
-  } catch (e) {
-    window.location.href = "/scanner";
+function renderLogsTable(logs) {
+  const tbody = document.getElementById("logsTableBody");
+  const visibleCountEl = document.getElementById("visibleCount");
+  const table = document.getElementById("forensicLogsTable");
+  const noMatchBanner = document.getElementById("noMatchBanner");
+  if (!tbody) return;
+
+  if (!logs || logs.length === 0) {
+    tbody.innerHTML = `
+      <tr id="emptyRowPlaceholder">
+        <td colspan="6" class="py-12 px-4 text-center">
+          <div class="flex flex-col items-center justify-center">
+            <i data-lucide="file-text" class="w-10 h-10 text-muted mb-2 stroke-1"></i>
+            <h4 class="text-base font-bold text-ink mb-1">No forensic records logged yet</h4>
+            <p class="text-xs text-muted">Run a URL probe, QR decode, or Email forensic scan to populate the activity audit trail.</p>
+          </div>
+        </td>
+      </tr>
+    `;
+    if (visibleCountEl) visibleCountEl.textContent = "0";
+    if (table) table.style.display = "";
+    if (noMatchBanner) noMatchBanner.style.display = "none";
+    if (window.lucide && typeof window.lucide.createIcons === "function") lucide.createIcons();
+    return;
+  }
+
+  tbody.innerHTML = logs.map(row => {
+    const isMalicious = row.status === "MALICIOUS";
+    const isSuspicious = row.status === "SUSPICIOUS";
+    const statusColor = isMalicious ? "text-danger" : (isSuspicious ? "text-amber-500" : "text-safe");
+    const statusLabel = row.status === "SAFE" ? "LOW RISK" : (isMalicious ? "CRITICAL / BLOCKED" : (isSuspicious ? "SUSPICIOUS" : "UNVERIFIED"));
+    const barColor = isMalicious ? "bg-danger" : (isSuspicious ? "bg-amber-500" : "bg-safe");
+    const isEmail = (row.source || '').toUpperCase() === 'EMAIL';
+
+    let metaHtml = '';
+    if (isEmail) {
+      const sender = escapeHtml(row.sender || row.host || "Unknown Sender");
+      const subject = row.subject ? `<span class="mx-1">•</span><span>Subject: <b>${escapeHtml(row.subject)}</b></span>` : '';
+      const auth = row.auth_summary ? `<span class="mx-1">•</span><span class="font-mono text-ink">${escapeHtml(row.auth_summary)}</span>` : '';
+      metaHtml = `<span>Sender: <b>${sender}</b></span>${subject}${auth}`;
+    } else {
+      const domain = escapeHtml(row.domain || row.host || "Autonomous");
+      const registrar = escapeHtml(row.registrar || "Enterprise Host Network");
+      const city = escapeHtml((row.geo_ip && row.geo_ip.city) || "Global");
+      const country = escapeHtml((row.geo_ip && row.geo_ip.country) || "Network");
+      metaHtml = `<span>Host: <b>${domain}</b></span><span class="mx-1">•</span><span>Registrar: <b>${registrar}</b></span><span class="mx-1">•</span><span class="font-mono">${city}, ${country}</span>`;
+    }
+
+    const targetUrl = escapeHtml(row.url || '');
+    const protocolBadge = escapeHtml(row.protocol || (isEmail ? 'EMAIL' : 'HTTPS'));
+
+    return `
+      <tr 
+        class="log-row hover:bg-ground/30 transition-colors" 
+        data-url="${targetUrl.toLowerCase()}" 
+        data-status="${escapeHtml((row.status || '').toLowerCase())}"
+        data-source="${escapeHtml(row.source || '')}"
+      >
+        <td class="py-3.5 px-4">
+          <div class="flex flex-col">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-ground text-ink border border-line uppercase">${protocolBadge}</span>
+              <a href="javascript:void(0)" class="font-mono text-sm font-medium text-ink hover:underline break-all" onclick="openInspectModal(${row.id})" title="${targetUrl}">
+                ${targetUrl}
+              </a>
+            </div>
+            <div class="text-xs text-muted leading-relaxed">
+              ${metaHtml}
+            </div>
+          </div>
+        </td>
+        <td class="py-3.5 px-4">
+          <span class="font-mono text-xs font-semibold px-2 py-0.5 bg-ground rounded-[4px] border border-line uppercase text-ink">
+            ${escapeHtml(row.source || 'URL')}
+          </span>
+        </td>
+        <td class="py-3.5 px-4">
+          <div class="flex items-center gap-2">
+            <div class="w-16 h-1.5 bg-line rounded-full overflow-hidden">
+              <div class="h-full ${barColor}" style="width: ${row.score}%;"></div>
+            </div>
+            <span class="font-mono text-xs font-bold text-ink">${row.score}%</span>
+          </div>
+        </td>
+        <td class="py-3.5 px-4">
+          <span class="font-bold text-xs ${statusColor}">${statusLabel}</span>
+        </td>
+        <td class="py-3.5 px-4">
+          <span class="font-mono text-xs text-muted">${escapeHtml(row.time || '')}</span>
+        </td>
+        <td class="py-3.5 px-4 text-right">
+          <div class="inline-flex items-center justify-end gap-2">
+            <button type="button" class="px-2.5 py-1 border border-ink text-ink rounded-btn text-xs font-medium hover:bg-ink hover:text-ground transition-colors cursor-pointer" onclick="openInspectModal(${row.id})" title="Inspect detailed telemetry">Inspect</button>
+            <button type="button" class="px-2.5 py-1 bg-ink text-ground rounded-btn text-xs font-medium hover:bg-ink/90 transition-colors cursor-pointer" onclick="downloadRecordPdf(${row.id}, this)" title="Download PDF forensic report">PDF Report</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  if (visibleCountEl) visibleCountEl.textContent = logs.length;
+  if (table) table.style.display = "";
+  if (noMatchBanner) noMatchBanner.style.display = "none";
+  initRiskBars();
+  if (window.lucide && typeof window.lucide.createIcons === "function") lucide.createIcons();
+}
+
+// ==========================================
+// Inspect Telemetry Modal Logic
+// ==========================================
+function handleModalBackdropClick(event) {
+  if (event.target === document.getElementById("inspectModal")) {
+    closeInspectModal();
   }
 }
 
-async function downloadRecordPdf(url, btnElement) {
-  const originalHtml = btnElement.innerHTML;
-  btnElement.disabled = true;
-  btnElement.innerHTML = '<span class="icon">⏳</span> PDF...';
+function closeInspectModal() {
+  const modal = document.getElementById("inspectModal");
+  if (modal) modal.style.display = "none";
+  currentInspectRecordId = null;
+  currentInspectData = null;
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" || e.keyCode === 27) {
+    closeInspectModal();
+  }
+});
+
+async function openInspectModal(recordId) {
+  currentInspectRecordId = recordId;
+  const modal = document.getElementById("inspectModal");
+  const loading = document.getElementById("inspectLoadingState");
+  const error = document.getElementById("inspectErrorState");
+  const content = document.getElementById("inspectContentState");
+
+  if (!modal) return;
+  modal.style.display = "flex";
+  if (loading) loading.style.display = "block";
+  if (error) error.style.display = "none";
+  if (content) content.style.display = "none";
+
+  const scanIdEl = document.getElementById("inspectModalScanId");
+  if (scanIdEl) scanIdEl.textContent = `Scan #${recordId}`;
 
   try {
-    const res = await fetch("/generate-report?url=" + encodeURIComponent(url));
-    if (!res.ok) throw new Error("Failed to generate PDF forensic report");
+    const res = await fetch(`/api/history/${recordId}`);
+    if (!res.ok) {
+      let errMsg = "Failed to load audit record details.";
+      try {
+        const errJson = await res.json();
+        errMsg = errJson.error || errMsg;
+      } catch (e) {}
+      throw new Error(errMsg);
+    }
+
+    const data = await res.json();
+    if (!data.success || !data.record) {
+      throw new Error(data.error || "Invalid response from telemetry server.");
+    }
+
+    currentInspectData = data.record;
+    populateInspectModal(data.record);
+
+    if (loading) loading.style.display = "none";
+    if (content) content.style.display = "block";
+  } catch (err) {
+    if (loading) loading.style.display = "none";
+    if (error) {
+      error.style.display = "block";
+      const msgEl = document.getElementById("inspectErrorMessage");
+      if (msgEl) msgEl.textContent = err.message || "Failed to load forensic details.";
+    }
+  }
+
+  if (window.lucide && typeof window.lucide.createIcons === "function") {
+    lucide.createIcons();
+  }
+}
+
+function populateInspectModal(rec) {
+  const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
+  setTxt("inspectModalTypeBadge", rec.scan_type || "SCAN");
+  setTxt("inspectModalScanId", `Scan #${rec.id}`);
+  setTxt("inspectModalTime", rec.timestamp || "");
+  setTxt("inspectModalTarget", rec.target || "Forensic Record");
+  setTxt("inspectScoreValue", `${rec.score}%`);
+  setTxt("inspectLevelText", rec.confidence ? `${rec.level || "Evaluated"} • ${rec.confidence}% Confidence` : (rec.level || "Evaluated"));
+
+  // Verdict Badge & Colors
+  const isMalicious = rec.verdict === "MALICIOUS";
+  const isSuspicious = rec.verdict === "SUSPICIOUS";
+  const verdictBadge = document.getElementById("inspectVerdictBadge");
+  const scoreBox = document.getElementById("inspectScoreBox");
+
+  if (verdictBadge) {
+    if (isMalicious) {
+      verdictBadge.className = "px-2.5 py-0.5 rounded text-xs font-bold font-mono uppercase bg-danger text-ground";
+      verdictBadge.textContent = "CRITICAL / MALICIOUS";
+    } else if (isSuspicious) {
+      verdictBadge.className = "px-2.5 py-0.5 rounded text-xs font-bold font-mono uppercase bg-amber-500 text-ground";
+      verdictBadge.textContent = "SUSPICIOUS / ELEVATED RISK";
+    } else {
+      verdictBadge.className = "px-2.5 py-0.5 rounded text-xs font-bold font-mono uppercase bg-safe text-ground";
+      verdictBadge.textContent = "LOW RISK / SAFE";
+    }
+  }
+
+  if (scoreBox) {
+    const scoreVal = document.getElementById("inspectScoreValue");
+    if (scoreVal) {
+      scoreVal.className = "font-mono text-xl font-bold " + (isMalicious ? "text-danger" : (isSuspicious ? "text-amber-500" : "text-safe"));
+    }
+  }
+
+  const summaryEl = document.getElementById("inspectVerdictSummary");
+  if (summaryEl) {
+    if (isMalicious) {
+      summaryEl.textContent = "Critical security threats detected. High probability of malicious intent, credential phishing, or deceptive headers.";
+    } else if (isSuspicious) {
+      summaryEl.textContent = "Elevated risk signals detected. Heuristic or reputation anomalies warrant caution before interacting.";
+    } else {
+      summaryEl.textContent = "Destination verified clean across threat intelligence feeds, SPF/DKIM authentication, and heuristic inspection.";
+    }
+  }
+
+  // Severity count badges
+  const counts = rec.severity_counts || {};
+  setTxt("inspectCountCritical", `${counts.critical || 0} Critical`);
+  setTxt("inspectCountHigh", `${counts.high || 0} High`);
+  setTxt("inspectCountMedium", `${counts.medium || 0} Med`);
+  setTxt("inspectCountLow", `${counts.low || 0} Low`);
+
+  // Legacy alert
+  const legacyAlert = document.getElementById("inspectLegacyAlert");
+  if (legacyAlert) {
+    legacyAlert.style.display = rec.limited_data ? "flex" : "none";
+  }
+
+  // Findings list
+  const findingsContainer = document.getElementById("inspectFindingsContainer");
+  const findingsCountBadge = document.getElementById("inspectFindingsCountBadge");
+  const findings = rec.findings || [];
+  if (findingsCountBadge) findingsCountBadge.textContent = `${findings.length} findings`;
+
+  if (findingsContainer) {
+    if (findings.length === 0) {
+      findingsContainer.innerHTML = `
+        <div class="p-4 border border-safe/30 bg-safe/5 rounded-panel text-xs text-safe font-mono flex items-center gap-2.5">
+          <i data-lucide="shield-check" class="w-5 h-5 shrink-0 text-safe"></i>
+          <span>No active malicious findings, phishing markers, or anomalies detected.</span>
+        </div>
+      `;
+    } else {
+      findingsContainer.innerHTML = findings.map(f => {
+        const sev = (f.severity || 'low').toLowerCase();
+        let badgeColor = "bg-muted/10 text-muted border-line";
+        if (sev === "critical" || sev === "high") badgeColor = "bg-danger/10 text-danger border-danger/30";
+        else if (sev === "medium") badgeColor = "bg-amber-500/10 text-amber-600 border-amber-500/30";
+
+        const recHtml = f.recommendation ? `
+          <div class="mt-2 text-xs bg-ground/60 border border-line/60 rounded px-3 py-2 text-muted font-mono leading-relaxed">
+            <span class="font-semibold text-ink">Recommended Action:</span> ${escapeHtml(f.recommendation)}
+          </div>
+        ` : '';
+
+        const evidenceHtml = f.evidence ? `
+          <div class="mt-2 text-xs bg-ground/60 border border-line/60 rounded px-3 py-2 text-muted font-mono leading-relaxed break-all">
+            <span class="font-semibold text-ink">Evidence:</span> ${escapeHtml(f.evidence)}
+          </div>
+        ` : '';
+
+        return `
+          <div class="border border-line rounded-panel p-4 bg-panel space-y-2">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
+              <div class="flex items-center gap-2">
+                <span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded uppercase border ${badgeColor}">${escapeHtml(f.severity || 'INFO')}</span>
+                <h5 class="text-xs font-bold text-ink">${escapeHtml(f.title || 'Security Anomaly')}</h5>
+              </div>
+              <span class="text-[11px] font-mono text-muted">${escapeHtml(f.category || 'Forensics')}</span>
+            </div>
+            <p class="text-xs text-muted leading-relaxed font-mono">${escapeHtml(f.explanation || f.description || '')}</p>
+            ${evidenceHtml}
+            ${recHtml}
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  // Passed checks list
+  const checksContainer = document.getElementById("inspectChecksContainer");
+  const passedChecks = rec.passed_checks || [];
+  if (checksContainer) {
+    if (passedChecks.length === 0) {
+      checksContainer.innerHTML = `
+        <div class="col-span-full p-3 border border-line rounded-panel bg-ground/30 text-xs font-mono text-muted text-center">
+          No baseline automated security checks verified for this record.
+        </div>
+      `;
+    } else {
+      checksContainer.innerHTML = passedChecks.map(c => `
+        <div class="p-3 border border-line rounded-panel bg-panel flex items-start gap-2.5">
+          <i data-lucide="check-circle" class="w-4 h-4 text-safe shrink-0 mt-0.5"></i>
+          <div>
+            <div class="text-xs font-bold text-ink leading-tight">${escapeHtml(c.title || '')}</div>
+            <div class="text-[11px] font-mono text-muted leading-relaxed mt-0.5">${escapeHtml(c.description || '')}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // Technical Telemetry Grid
+  const techGrid = document.getElementById("inspectTechnicalGrid");
+  if (techGrid) {
+    const tech = rec.technical_details || {};
+    const rows = [];
+
+    const addRow = (label, val, mono = true) => {
+      if (val !== undefined && val !== null && val !== "") {
+        rows.push(`
+          <div class="grid grid-cols-1 sm:grid-cols-3 p-3 gap-1 hover:bg-ground/40 transition-colors">
+            <div class="font-semibold text-muted font-mono uppercase text-[11px]">${escapeHtml(label)}</div>
+            <div class="sm:col-span-2 text-ink break-all ${mono ? 'font-mono' : ''}">${escapeHtml(String(val))}</div>
+          </div>
+        `);
+      }
+    };
+
+    if (rec.scan_type === "EMAIL") {
+      const s = tech.sender_verification || {};
+      addRow("From Header", `${s.display_name || ''} <${s.from_address || ''}>`);
+      addRow("Return-Path", s.return_path);
+      addRow("Reply-To", s.reply_to);
+      addRow("Sender Alignment", s.is_spoofed ? "SPOOFED / DISCORDANT" : "ALIGNED");
+
+      const auth = tech.authentication_protocols || {};
+      addRow("SPF Protocol", `${(auth.spf && auth.spf.status) || 'NONE'} — ${(auth.spf && auth.spf.explanation) || ''}`);
+      addRow("DKIM Signature", `${(auth.dkim && auth.dkim.status) || 'NONE'} — ${(auth.dkim && auth.dkim.explanation) || ''}`);
+      addRow("DMARC Policy", `${(auth.dmarc && auth.dmarc.status) || 'NONE'} — ${(auth.dmarc && auth.dmarc.explanation) || ''}`);
+
+      const net = tech.origin_network || {};
+      addRow("Originating MTA IP", net.originating_ip);
+      addRow("Origin Location", `${net.city || ''}, ${net.country || ''}`);
+      addRow("Origin ISP / ASN", net.isp_asn);
+
+      const content = tech.content_and_links || {};
+      addRow("Urgency Threat Index", `${content.urgency_index || 0} / 100`);
+      addRow("CEO Fraud Marker", content.ceo_fraud_detected ? "DETECTED" : "None");
+      addRow("Extracted Hyperlinks", `${content.total_links || 0} links evaluated`);
+    } else {
+      // URL or QR scan
+      const urlInfo = tech.url_breakdown || {};
+      addRow("Canonical URL", urlInfo.canonical_url);
+      addRow("Final Destination", urlInfo.final_destination);
+      addRow("Protocol / Scheme", urlInfo.scheme);
+      addRow("Target Host", urlInfo.host);
+      addRow("Destination Port", urlInfo.port);
+
+      const infra = tech.infrastructure || {};
+      addRow("IP Address", infra.ip_address);
+      addRow("Reverse DNS (PTR)", infra.reverse_dns);
+      addRow("ASN & Organisation", infra.asn_org);
+      addRow("Geographic Location", infra.location);
+      addRow("Registrar Network", infra.registrar);
+
+      const red = tech.redirect_chain || {};
+      addRow("Redirect Hops", `${red.hops_count || 0} hops`);
+
+      const intel = tech.threat_intel_summary || {};
+      addRow("Threat Engines Flagged", `${intel.engines_flagged || 0} / ${intel.total_engines || 90} security scanners`);
+
+      if (tech.qr_payload) {
+        addRow("QR Payload Type", tech.qr_payload.payload_type);
+        addRow("QR Raw Content", tech.qr_payload.payload_data);
+      }
+    }
+
+    if (rows.length === 0) {
+      techGrid.innerHTML = '<div class="p-4 text-xs font-mono text-muted text-center">No detailed technical attributes recorded.</div>';
+    } else {
+      techGrid.innerHTML = rows.join('');
+    }
+  }
+
+  // Collapsible Raw JSON
+  const rawJsonEl = document.getElementById("inspectRawJson");
+  if (rawJsonEl) {
+    const rawData = rec.raw_json || rec;
+    rawJsonEl.textContent = JSON.stringify(rawData, null, 2);
+  }
+
+  const footerMeta = document.getElementById("inspectModalFooterMeta");
+  if (footerMeta) {
+    footerMeta.textContent = `CyberScape Forensic Report #${rec.id} • ${rec.scan_type} Scan • ${rec.timestamp}`;
+  }
+}
+
+function copyInspectJson(event) {
+  if (event) event.stopPropagation();
+  if (currentInspectData) {
+    const raw = currentInspectData.raw_json || currentInspectData;
+    navigator.clipboard.writeText(JSON.stringify(raw, null, 2)).then(() => {
+      const targetBtn = event && event.target;
+      if (targetBtn) {
+        const orig = targetBtn.textContent;
+        targetBtn.textContent = "Copied!";
+        setTimeout(() => { targetBtn.textContent = orig; }, 1800);
+      }
+    });
+  }
+}
+
+function downloadInspectPdf(btnElement) {
+  if (currentInspectRecordId) {
+    downloadRecordPdf(currentInspectRecordId, btnElement);
+  }
+}
+
+async function downloadRecordPdf(recordId, btnElement) {
+  const origHtml = btnElement ? btnElement.innerHTML : "";
+  if (btnElement) {
+    btnElement.disabled = true;
+    btnElement.innerHTML = '<span class="inline-block w-3 h-3 rounded-full border-2 border-ground border-t-transparent animate-spin mr-1.5"></span> PDF...';
+  }
+
+  try {
+    const res = await fetch(`/history/${recordId}/report.pdf`);
+    if (!res.ok) {
+      let errMsg = "Failed to generate forensic PDF report.";
+      try {
+        const errJson = await res.json();
+        errMsg = errJson.error || errMsg;
+      } catch (e) {}
+      throw new Error(errMsg);
+    }
 
     const blob = await res.blob();
     const blobUrl = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = blobUrl;
-    const safeHost = url.replace(/^https?:\/\//i, "").split("/")[0].replace(/[^a-zA-Z0-9_-]/g, "_");
-    a.download = `CyberScape_Forensic_Report_${safeHost}.pdf`;
+
+    // Extract filename from header if present
+    let filename = `CyberScape_Report_${recordId}.pdf`;
+    const disposition = res.headers.get("Content-Disposition");
+    if (disposition && disposition.indexOf("filename=") !== -1) {
+      const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disposition);
+      if (matches != null && matches[1]) {
+        filename = matches[1].replace(/['"]/g, "");
+      }
+    }
+
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(blobUrl);
   } catch (err) {
-    alert("Could not generate forensic report: " + err.message);
+    alert("Could not generate forensic PDF: " + err.message);
   } finally {
-    btnElement.disabled = false;
-    btnElement.innerHTML = originalHtml;
+    if (btnElement) {
+      btnElement.disabled = false;
+      btnElement.innerHTML = origHtml;
+    }
+  }
+}
+
+let currentDashboardPage = 1;
+let totalDashboardPages = 1;
+
+async function fetchLiveDashboardData(page = 1) {
+  currentDashboardPage = page;
+  try {
+    // 1. Fetch live metrics from SQLite database
+    const statsRes = await fetch("/api/dashboard/stats");
+    if (statsRes.ok) {
+      const s = await statsRes.json();
+      if (s.success) {
+        const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        setVal("statTotal", s.total);
+        setVal("statSafe", s.safe);
+        setVal("statSuspicious", s.suspicious);
+        setVal("statBlocked", s.blocked);
+        setVal("countAllLogs", s.total);
+        setVal("countUrlProbes", s.url);
+        setVal("countQrDecodes", s.qr);
+        setVal("countEmailScans", s.email);
+      }
+    }
+
+    // 2. Fetch paginated logs from SQLite database
+    const searchInput = document.getElementById("logsSearchInput");
+    const q = (searchInput ? searchInput.value : "").trim();
+    const sourceParam = (currentLogFilter && currentLogFilter !== 'all') ? currentLogFilter : "";
+
+    const url = `/api/dashboard/logs?page=${page}&per_page=20&q=${encodeURIComponent(q)}&source=${encodeURIComponent(sourceParam)}`;
+    const logsRes = await fetch(url);
+    if (logsRes.ok) {
+      const ld = await logsRes.json();
+      if (ld.success) {
+        totalDashboardPages = ld.pages || 1;
+        const pageEl = document.getElementById("currentPageNum");
+        const totalPageEl = document.getElementById("totalPageNum");
+        const prevBtn = document.getElementById("btnPrevPage");
+        const nextBtn = document.getElementById("btnNextPage");
+
+        if (pageEl) pageEl.textContent = ld.page;
+        if (totalPageEl) totalPageEl.textContent = totalDashboardPages;
+        if (prevBtn) prevBtn.disabled = ld.page <= 1;
+        if (nextBtn) nextBtn.disabled = ld.page >= totalDashboardPages;
+
+        renderLogsTable(ld.logs);
+      }
+    }
+  } catch (err) {
+    console.debug("Dashboard live sync notice:", err);
+  }
+}
+
+function changeLogPage(delta) {
+  const targetPage = currentDashboardPage + delta;
+  if (targetPage >= 1 && targetPage <= totalDashboardPages) {
+    fetchLiveDashboardData(targetPage);
   }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   initRiskBars();
+  fetchLiveDashboardData(1);
 });
 initRiskBars();
 </script>

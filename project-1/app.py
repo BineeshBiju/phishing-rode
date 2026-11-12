@@ -1,4 +1,6 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file
+# Copyright (c) 2026 Jerald M Jolly, Bineesh Biju, Aston Mathew Felix, Adhul K R
+# See LICENSE for details.
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_file, Response, flash
 from urllib.parse import urlparse
 from functools import wraps
 from io import BytesIO
@@ -8,13 +10,41 @@ import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 import os
-import requests
 from werkzeug.security import check_password_hash, generate_password_hash
+from dotenv import load_dotenv
+from flask_cors import CORS
+from backend.services.history_service import (
+    format_history_record_for_inspect,
+    detect_qr_payload_type,
+    format_url_findings_and_checks,
+    format_email_findings_and_checks
+)
+from backend.services.qr_analyzer import scan_qr_payload
+from backend.services.rate_limiter import rate_limit
+
+load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("CYBERSCAPE_SECRET_KEY", "change-this-development-secret")
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=7)
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 DATABASE = Path(__file__).with_name("cyberscape.db")
+
+
+@app.after_request
+def add_cache_headers(response):
+    if response.mimetype == "text/html" or request.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
+@app.context_processor
+def inject_current_year():
+    return {"current_year": datetime.now().year}
 
 
 def normalize_phone(value):
@@ -41,6 +71,33 @@ def init_db():
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS scan_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_email TEXT,
+                target_url TEXT NOT NULL,
+                source TEXT NOT NULL,
+                score INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                level TEXT NOT NULL,
+                time TEXT NOT NULL,
+                domain TEXT,
+                registrar TEXT,
+                details_json TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        cols = [col[1] for col in connection.execute("PRAGMA table_info(scan_logs)").fetchall()]
+        if "user_email" not in cols:
+            connection.execute("ALTER TABLE scan_logs ADD COLUMN user_email TEXT")
+        if "details_json" not in cols:
+            connection.execute("ALTER TABLE scan_logs ADD COLUMN details_json TEXT")
+        if "domain" not in cols:
+            connection.execute("ALTER TABLE scan_logs ADD COLUMN domain TEXT")
+        if "registrar" not in cols:
+            connection.execute("ALTER TABLE scan_logs ADD COLUMN registrar TEXT")
         admin_exists = connection.execute(
             "SELECT 1 FROM users WHERE email = ?", ("admin@cyberscape.test",)
         ).fetchone()
@@ -72,150 +129,138 @@ def find_user_by_login(login_value):
 init_db()
 
 GEO_LOOKUP = {
-    "example.com": ("Los Angeles", "United States", 34.0522, -118.2437, "🇺🇸", "93.184.216.34"),
-    "update-account-verification.xyz": ("Reykjavik", "Iceland", 64.1466, -21.9426, "🇮🇸", "185.199.110.153"),
-    "192.168.1.105": ("Frankfurt", "Germany", 50.1109, 8.6821, "🇩🇪", "192.168.1.105"),
-    "github.com": ("San Francisco", "United States", 37.7749, -122.4194, "🇺🇸", "140.82.121.4"),
-    "bit.ly": ("New York", "United States", 40.7128, -74.0060, "🇺🇸", "67.199.248.11"),
-    "wikipedia.org": ("Ashburn", "United States", 39.0438, -77.4874, "🇺🇸", "208.80.154.224"),
-    "wellsfargo-security-check.top": ("Moscow", "Russia", 55.7558, 37.6173, "🇷🇺", "194.58.112.174"),
-    "qr-event-checkin.live": ("Amsterdam", "Netherlands", 52.3676, 4.9041, "🇳🇱", "185.220.101.99"),
-    "aws.amazon.com": ("Seattle", "United States", 47.6062, -122.3321, "🇺🇸", "52.94.236.248"),
-    "dhl-express-tracking-delivery.buzz": ("Bucharest", "Romania", 44.4268, 26.1025, "🇷🇴", "185.130.104.22"),
-    "stackoverflow.com": ("Chicago", "United States", 41.8781, -87.6298, "🇺🇸", "151.101.1.69"),
-    "apple-id-cloud-verify.monster": ("Vilnius", "Lithuania", 54.6872, 25.2797, "🇱🇹", "185.220.102.8"),
-    "qr-wifi-guest-portal.net": ("Austin", "United States", 30.2672, -97.7431, "🇺🇸", "172.67.140.21"),
-    "python.org": ("Paris", "France", 48.8566, 2.3522, "🇫🇷", "151.101.128.223"),
-    "185.220.101.4": ("Berlin", "Germany", 52.5200, 13.4050, "🇩🇪", "185.220.101.4"),
-    "t.co": ("San Francisco", "United States", 37.7749, -122.4194, "🇺🇸", "104.244.42.193"),
-    "cloudflare.com": ("San Jose", "United States", 37.3382, -121.8863, "🇺🇸", "104.16.132.229"),
-    "chase-bank-verify-portal.work": ("Sofia", "Bulgaria", 42.6977, 23.3219, "🇧🇬", "194.67.91.45"),
-    "menu-restaurant-scan.xyz": ("Toronto", "Canada", 43.6532, -79.3832, "🇨🇦", "198.51.100.84"),
-    "developer.mozilla.org": ("Mountain View", "United States", 37.3861, -122.0839, "🇺🇸", "13.224.14.8"),
-    "qr-payment-invoice-gateway.biz": ("Hong Kong", "Hong Kong", 22.3193, 114.1694, "🇭🇰", "103.251.167.90"),
-    "netflix.com": ("Los Gatos", "United States", 37.2266, -121.9747, "🇺🇸", "44.242.150.12"),
-    "netflix-billing-update-2024.icu": ("Saint Petersburg", "Russia", 59.9343, 30.3351, "🇷🇺", "195.201.201.32"),
-    "tinyurl.com": ("Dallas", "United States", 32.7767, -96.7970, "🇺🇸", "104.20.10.11"),
-    "linkedin.com": ("Sunnyvale", "United States", 37.3688, -122.0363, "🇺🇸", "108.174.10.10"),
-    "binance-kyc-aml-compliance.date": ("Singapore", "Singapore", 1.3521, 103.8198, "🇸🇬", "178.128.220.15"),
-    "qr-event-pass.me": ("London", "United Kingdom", 51.5074, -0.1278, "🇬🇧", "185.199.108.153"),
-    "docker.com": ("San Francisco", "United States", 37.7749, -122.4194, "🇺🇸", "104.244.42.1"),
-    "usps-address-confirm-redelivery.buzz": ("Kyiv", "Ukraine", 50.4501, 30.5234, "🇺🇦", "91.240.118.66"),
-    "nist.gov": ("Gaithersburg", "United States", 39.1434, -77.2014, "🇺🇸", "129.6.13.47"),
-    "103.251.167.22": ("Seoul", "South Korea", 37.5665, 126.9780, "🇰🇷", "103.251.167.22"),
-    "qr-loyalty-reward.club": ("São Paulo", "Brazil", -23.5505, -46.6333, "🇧🇷", "177.185.204.10"),
-    "gitlab.com": ("Dublin", "Ireland", 53.3498, -6.2603, "🇮🇪", "172.65.251.78"),
-    "steamcommunity-trade-gift.trade": ("Warsaw", "Poland", 52.2297, 21.0122, "🇵🇱", "194.26.29.112"),
-    "parking-meter-quickpay.mobi": ("Sydney", "Australia", -33.8688, 151.2093, "🇦🇺", "13.239.88.42"),
-    "nytimes.com": ("New York", "United States", 40.7128, -74.0060, "🇺🇸", "151.101.65.164"),
-    "wallet-connect-ledger-sync.ga": ("Lagos", "Nigeria", 6.5244, 3.3792, "🇳🇬", "197.210.226.4"),
-    "zoom.us": ("San Jose", "United States", 37.3382, -121.8863, "🇺🇸", "170.114.52.2"),
-    "irs-tax-refund-direct-deposit.mom": ("Almaty", "Kazakhstan", 43.2220, 76.8512, "🇰🇿", "195.189.97.10"),
-    "cutt.ly": ("Warsaw", "Poland", 52.2297, 21.0122, "🇵🇱", "185.143.223.1"),
-    "slack.com": ("San Francisco", "United States", 37.7749, -122.4194, "🇺🇸", "151.101.193.140"),
-    "suspicious-bank-login.com": ("Prague", "Czechia", 50.0755, 14.4378, "🇨🇿", "185.220.103.4"),
-    "qr-exhibit-guide.museum": ("Florence", "Italy", 43.7696, 11.2558, "🇮🇹", "193.205.156.2"),
-    "bbc.com": ("London", "United Kingdom", 51.5074, -0.1278, "🇬🇧", "151.101.0.81"),
-    "discord-nitro-free-3months.science": ("Riga", "Latvia", 56.9496, 24.1052, "🇱🇻", "185.220.101.5"),
-    "salesforce.com": ("San Francisco", "United States", 37.7749, -122.4194, "🇺🇸", "136.146.210.10"),
-    "amazon-prime-payment-declined.rest": ("Istanbul", "Turkey", 41.0082, 28.9784, "🇹🇷", "185.255.45.18"),
-    "transit-pass-scan.city": ("Tokyo", "Japan", 35.6762, 139.6503, "🇯🇵", "133.242.18.2"),
-    "dropbox.com": ("San Francisco", "United States", 37.7749, -122.4194, "🇺🇸", "162.125.6.1"),
-    "free-crypto-giveaway-airdrop.live": ("Panama City", "Panama", 8.9824, -79.5199, "🇵🇦", "190.14.36.12")
+    "example.com": ("Los Angeles", "United States", 34.0522, -118.2437, "US", "93.184.216.34"),
+    "update-account-verification.xyz": ("Reykjavik", "Iceland", 64.1466, -21.9426, "IS", "185.199.110.153"),
+    "192.168.1.105": ("Frankfurt", "Germany", 50.1109, 8.6821, "DE", "192.168.1.105"),
+    "github.com": ("San Francisco", "United States", 37.7749, -122.4194, "US", "140.82.121.4"),
+    "bit.ly": ("New York", "United States", 40.7128, -74.0060, "US", "67.199.248.11"),
+    "wikipedia.org": ("Ashburn", "United States", 39.0438, -77.4874, "US", "208.80.154.224"),
+    "wellsfargo-security-check.top": ("Moscow", "Russia", 55.7558, 37.6173, "RU", "194.58.112.174"),
+    "qr-event-checkin.live": ("Amsterdam", "Netherlands", 52.3676, 4.9041, "NL", "185.220.101.99"),
+    "aws.amazon.com": ("Seattle", "United States", 47.6062, -122.3321, "US", "52.94.236.248"),
+    "dhl-express-tracking-delivery.buzz": ("Bucharest", "Romania", 44.4268, 26.1025, "RO", "185.130.104.22"),
+    "stackoverflow.com": ("Chicago", "United States", 41.8781, -87.6298, "US", "151.101.1.69"),
+    "apple-id-cloud-verify.monster": ("Vilnius", "Lithuania", 54.6872, 25.2797, "LT", "185.220.102.8"),
+    "qr-wifi-guest-portal.net": ("Austin", "United States", 30.2672, -97.7431, "US", "172.67.140.21"),
+    "python.org": ("Paris", "France", 48.8566, 2.3522, "FR", "151.101.128.223"),
+    "185.220.101.4": ("Berlin", "Germany", 52.5200, 13.4050, "DE", "185.220.101.4"),
+    "t.co": ("San Francisco", "United States", 37.7749, -122.4194, "US", "104.244.42.193"),
+    "cloudflare.com": ("San Jose", "United States", 37.3382, -121.8863, "US", "104.16.132.229"),
+    "chase-bank-verify-portal.work": ("Sofia", "Bulgaria", 42.6977, 23.3219, "BG", "194.67.91.45"),
+    "menu-restaurant-scan.xyz": ("Toronto", "Canada", 43.6532, -79.3832, "CA", "198.51.100.84"),
+    "developer.mozilla.org": ("Mountain View", "United States", 37.3861, -122.0839, "US", "13.224.14.8"),
+    "qr-payment-invoice-gateway.biz": ("Hong Kong", "Hong Kong", 22.3193, 114.1694, "HK", "103.251.167.90"),
+    "netflix.com": ("Los Gatos", "United States", 37.2266, -121.9747, "US", "44.242.150.12"),
+    "netflix-billing-update-2024.icu": ("Saint Petersburg", "Russia", 59.9343, 30.3351, "RU", "195.201.201.32"),
+    "tinyurl.com": ("Dallas", "United States", 32.7767, -96.7970, "US", "104.20.10.11"),
+    "linkedin.com": ("Sunnyvale", "United States", 37.3688, -122.0363, "US", "108.174.10.10"),
+    "binance-kyc-aml-compliance.date": ("Singapore", "Singapore", 1.3521, 103.8198, "SG", "178.128.220.15"),
+    "qr-event-pass.me": ("London", "United Kingdom", 51.5074, -0.1278, "GB", "185.199.108.153"),
+    "docker.com": ("San Francisco", "United States", 37.7749, -122.4194, "US", "104.244.42.1"),
+    "usps-address-confirm-redelivery.buzz": ("Kyiv", "Ukraine", 50.4501, 30.5234, "UA", "91.240.118.66"),
+    "nist.gov": ("Gaithersburg", "United States", 39.1434, -77.2014, "US", "129.6.13.47"),
+    "103.251.167.22": ("Seoul", "South Korea", 37.5665, 126.9780, "KR", "103.251.167.22"),
+    "qr-loyalty-reward.club": ("São Paulo", "Brazil", -23.5505, -46.6333, "BR", "177.185.204.10"),
+    "gitlab.com": ("Dublin", "Ireland", 53.3498, -6.2603, "IE", "172.65.251.78"),
+    "steamcommunity-trade-gift.trade": ("Warsaw", "Poland", 52.2297, 21.0122, "PL", "194.26.29.112"),
+    "parking-meter-quickpay.mobi": ("Sydney", "Australia", -33.8688, 151.2093, "AU", "13.239.88.42"),
+    "nytimes.com": ("New York", "United States", 40.7128, -74.0060, "US", "151.101.65.164"),
+    "wallet-connect-ledger-sync.ga": ("Lagos", "Nigeria", 6.5244, 3.3792, "NG", "197.210.226.4"),
+    "zoom.us": ("San Jose", "United States", 37.3382, -121.8863, "US", "170.114.52.2"),
+    "irs-tax-refund-direct-deposit.mom": ("Almaty", "Kazakhstan", 43.2220, 76.8512, "KZ", "195.189.97.10"),
+    "cutt.ly": ("Warsaw", "Poland", 52.2297, 21.0122, "PL", "185.143.223.1"),
+    "slack.com": ("San Francisco", "United States", 37.7749, -122.4194, "US", "151.101.193.140"),
+    "suspicious-bank-login.com": ("Prague", "Czechia", 50.0755, 14.4378, "CZ", "185.220.103.4"),
+    "qr-exhibit-guide.museum": ("Florence", "Italy", 43.7696, 11.2558, "IT", "193.205.156.2"),
+    "bbc.com": ("London", "United Kingdom", 51.5074, -0.1278, "GB", "151.101.0.81"),
+    "discord-nitro-free-3months.science": ("Riga", "Latvia", 56.9496, 24.1052, "LV", "185.220.101.5"),
+    "salesforce.com": ("San Francisco", "United States", 37.7749, -122.4194, "US", "136.146.210.10"),
+    "amazon-prime-payment-declined.rest": ("Istanbul", "Turkey", 41.0082, 28.9784, "TR", "185.255.45.18"),
+    "transit-pass-scan.city": ("Tokyo", "Japan", 35.6762, 139.6503, "JP", "133.242.18.2"),
+    "dropbox.com": ("San Francisco", "United States", 37.7749, -122.4194, "US", "162.125.6.1"),
+    "free-crypto-giveaway-airdrop.live": ("Panama City", "Panama", 8.9824, -79.5199, "PA", "190.14.36.12")
 }
 
+# Real-Time User Activity Logging (Clean history by default)
+scan_history = []
 
-def _seed_scan_history():
-    seeds = [
-        ("https://example.com/test-pdf", "URL", 0, "SAFE", "Low Risk", "2026-10-16 23:37:58", "example.com", "RESERVED-Internet Assigned Numbers Authority"),
-        ("https://update-account-verification.xyz/paypal/login", "QR", 92, "MALICIOUS", "Critical Threat", "2026-10-16 23:14:10", "update-account-verification.xyz", "NameCheap, Inc."),
-        ("http://192.168.1.105/bank/verify", "URL", 96, "MALICIOUS", "Critical Threat", "2026-10-16 22:45:19", "192.168.1.105", "Private Subnet / Autonomous"),
-        ("https://github.com/torvalds/linux", "URL", 0, "SAFE", "Low Risk", "2026-10-16 21:30:05", "github.com", "MarkMonitor Inc."),
-        ("https://bit.ly/secure-banking-alert", "QR", 78, "SUSPICIOUS", "Elevated Risk", "2026-10-16 20:15:42", "bit.ly", "Bitly, Inc."),
-        ("https://en.wikipedia.org/wiki/Computer_security", "URL", 0, "SAFE", "Low Risk", "2026-10-16 19:02:11", "wikipedia.org", "MarkMonitor Inc."),
-        ("http://wellsfargo-security-check.top/confirm", "URL", 88, "MALICIOUS", "Critical Threat", "2026-10-16 18:22:50", "wellsfargo-security-check.top", "Dynadot Inc."),
-        ("https://qr-event-checkin.live/ticket/4921", "QR", 64, "SUSPICIOUS", "Elevated Risk", "2026-10-16 17:10:33", "qr-event-checkin.live", "NameCheap, Inc."),
-        ("https://aws.amazon.com/console/", "URL", 0, "SAFE", "Low Risk", "2026-10-16 16:45:12", "aws.amazon.com", "Amazon Technologies Inc."),
-        ("https://dhl-express-tracking-delivery.buzz/track", "QR", 85, "MALICIOUS", "Critical Threat", "2026-10-16 15:30:00", "dhl-express-tracking-delivery.buzz", "Tucows Domains Inc."),
-        ("https://stackoverflow.com/questions", "URL", 0, "SAFE", "Low Risk", "2026-10-16 14:18:22", "stackoverflow.com", "NameCheap, Inc."),
-        ("https://apple-id-cloud-verify.monster/auth", "URL", 94, "MALICIOUS", "Critical Threat", "2026-10-16 13:50:41", "apple-id-cloud-verify.monster", "Hostinger Operations"),
-        ("https://qr-wifi-guest-portal.net/connect", "QR", 10, "SAFE", "Low Risk", "2026-10-16 13:05:19", "qr-wifi-guest-portal.net", "GoDaddy.com, LLC"),
-        ("https://python.org/downloads", "URL", 0, "SAFE", "Low Risk", "2026-10-16 12:40:02", "python.org", "Gandi SAS"),
-        ("http://185.220.101.4/secure/account-verification/", "URL", 95, "MALICIOUS", "Critical Threat", "2026-10-16 11:25:33", "185.220.101.4", "Stiftung Erneuerbare Freiheit"),
-        ("https://t.co/promo-holiday-bonus", "QR", 72, "SUSPICIOUS", "Elevated Risk", "2026-10-16 10:55:18", "t.co", "Twitter, Inc."),
-        ("https://cloudflare.com/learning", "URL", 0, "SAFE", "Low Risk", "2026-10-16 10:12:00", "cloudflare.com", "Cloudflare, Inc."),
-        ("https://chase-bank-verify-portal.work/auth", "URL", 91, "MALICIOUS", "Critical Threat", "2026-10-16 09:30:45", "chase-bank-verify-portal.work", "Hostinger Operations"),
-        ("https://menu-restaurant-scan.xyz/table-14", "QR", 5, "SAFE", "Low Risk", "2026-10-16 08:45:10", "menu-restaurant-scan.xyz", "NameCheap, Inc."),
-        ("https://developer.mozilla.org/en-US/", "URL", 0, "SAFE", "Low Risk", "2026-10-16 08:00:22", "mozilla.org", "MarkMonitor Inc."),
-        ("https://qr-payment-invoice-gateway.biz/pay", "QR", 82, "MALICIOUS", "Critical Threat", "2026-10-15 22:30:19", "qr-payment-invoice-gateway.biz", "Dynadot Inc."),
-        ("https://netflix.com/browse", "URL", 0, "SAFE", "Low Risk", "2026-10-15 21:14:05", "netflix.com", "MarkMonitor Inc."),
-        ("http://netflix-billing-update-2024.icu/auth", "URL", 89, "MALICIOUS", "Critical Threat", "2026-10-15 20:05:44", "netflix-billing-update-2024.icu", "Registrar of Domain Names"),
-        ("https://tinyurl.com/meeting-join-secure", "QR", 65, "SUSPICIOUS", "Elevated Risk", "2026-10-15 19:35:12", "tinyurl.com", "NameCheap, Inc."),
-        ("https://linkedin.com/feed", "URL", 0, "SAFE", "Low Risk", "2026-10-15 18:50:30", "linkedin.com", "MarkMonitor Inc."),
-        ("https://binance-kyc-aml-compliance.date/login", "URL", 93, "MALICIOUS", "Critical Threat", "2026-10-15 17:40:15", "binance-kyc-aml-compliance.date", "Hostinger Operations"),
-        ("https://qr-event-pass.me/conference-2026", "QR", 0, "SAFE", "Low Risk", "2026-10-15 16:20:00", "qr-event-pass.me", "GoDaddy.com, LLC"),
-        ("https://docker.com/products", "URL", 0, "SAFE", "Low Risk", "2026-10-15 15:15:22", "docker.com", "MarkMonitor Inc."),
-        ("https://usps-address-confirm-redelivery.buzz/tracking", "QR", 88, "MALICIOUS", "Critical Threat", "2026-10-15 14:10:05", "usps-address-confirm-redelivery.buzz", "NameCheap, Inc."),
-        ("https://nist.gov/cyberframework", "URL", 0, "SAFE", "Low Risk", "2026-10-15 13:00:19", "nist.gov", "U.S. General Services Administration"),
-        ("http://103.251.167.22/admin/signin", "URL", 95, "MALICIOUS", "Critical Threat", "2026-10-15 12:22:45", "103.251.167.22", "APNIC Regional Registry"),
-        ("https://qr-loyalty-reward.club/claim", "QR", 68, "SUSPICIOUS", "Elevated Risk", "2026-10-15 11:15:30", "qr-loyalty-reward.club", "Dynadot Inc."),
-        ("https://gitlab.com/explore", "URL", 0, "SAFE", "Low Risk", "2026-10-15 10:40:12", "gitlab.com", "MarkMonitor Inc."),
-        ("https://steamcommunity-trade-gift.trade/offer", "URL", 90, "MALICIOUS", "Critical Threat", "2026-10-15 09:35:50", "steamcommunity-trade-gift.trade", "NameCheap, Inc."),
-        ("https://parking-meter-quickpay.mobi/stall90", "QR", 15, "SAFE", "Low Risk", "2026-10-15 08:50:18", "parking-meter-quickpay.mobi", "Tucows Domains Inc."),
-        ("https://nytimes.com/section/technology", "URL", 0, "SAFE", "Low Risk", "2026-10-15 08:12:00", "nytimes.com", "MarkMonitor Inc."),
-        ("https://wallet-connect-ledger-sync.ga/recover", "QR", 96, "MALICIOUS", "Critical Threat", "2026-10-14 23:45:10", "wallet-connect-ledger-sync.ga", "Freenom / GA Domains"),
-        ("https://zoom.us/join", "URL", 0, "SAFE", "Low Risk", "2026-10-14 22:30:05", "zoom.us", "MarkMonitor Inc."),
-        ("https://irs-tax-refund-direct-deposit.mom/claim", "URL", 92, "MALICIOUS", "Critical Threat", "2026-10-14 21:15:40", "irs-tax-refund-direct-deposit.mom", "NameCheap, Inc."),
-        ("https://cutt.ly/express-shipping-fee", "QR", 75, "SUSPICIOUS", "Elevated Risk", "2026-10-14 20:05:25", "cutt.ly", "Cuttly Security"),
-        ("https://slack.com/help", "URL", 0, "SAFE", "Low Risk", "2026-10-14 19:20:10", "slack.com", "MarkMonitor Inc."),
-        ("http://user@suspicious-bank-login.com/secure", "URL", 87, "MALICIOUS", "Critical Threat", "2026-10-14 18:10:55", "suspicious-bank-login.com", "Hostinger Operations"),
-        ("https://qr-exhibit-guide.museum/art/402", "QR", 0, "SAFE", "Low Risk", "2026-10-14 17:35:00", "qr-exhibit-guide.museum", "Museum Domain Registry"),
-        ("https://bbc.com/news/technology", "URL", 0, "SAFE", "Low Risk", "2026-10-14 16:22:15", "bbc.com", "BBC Worldwide"),
-        ("https://discord-nitro-free-3months.science/claim", "QR", 94, "MALICIOUS", "Critical Threat", "2026-10-14 15:10:40", "discord-nitro-free-3months.science", "Dynadot Inc."),
-        ("https://salesforce.com/login", "URL", 0, "SAFE", "Low Risk", "2026-10-14 14:05:30", "salesforce.com", "MarkMonitor Inc."),
-        ("http://amazon-prime-payment-declined.rest/update", "URL", 91, "MALICIOUS", "Critical Threat", "2026-10-14 13:20:15", "amazon-prime-payment-declined.rest", "Hostinger Operations"),
-        ("https://transit-pass-scan.city/ticket", "QR", 5, "SAFE", "Low Risk", "2026-10-14 12:15:00", "transit-pass-scan.city", "City Transit Authority"),
-        ("https://dropbox.com/home", "URL", 0, "SAFE", "Low Risk", "2026-10-14 11:30:20", "dropbox.com", "MarkMonitor Inc."),
-        ("https://free-crypto-giveaway-airdrop.live/claim", "QR", 97, "MALICIOUS", "Critical Threat", "2026-10-14 10:45:10", "free-crypto-giveaway-airdrop.live", "NameCheap, Inc.")
-    ]
-    logs = []
-    # Reverse so that index 0 is oldest and index -1 is newest (https://example.com/test-pdf)
-    for url, src, score, status, level, ts, host, reg in reversed(seeds):
-        proto = "HTTPS" if url.startswith("https") else "HTTP"
-        city, country, lat, lon, flag, ip = GEO_LOOKUP.get(
-            host, 
-            ("Global Node", "United States" if "MarkMonitor" in reg or "example" in host else "Global Network", 37.751, -122.42, "🌐", "192.0.2.1")
-        )
-        logs.append({
-            "url": url,
-            "protocol": proto,
-            "host": host,
-            "registrar": reg,
-            "source": src,
-            "score": score,
-            "status": status,
-            "level": level,
-            "time": ts,
-            "geo_ip": {
-                "hostname": host,
-                "city": city,
-                "country": country,
-                "latitude": lat,
-                "longitude": lon,
-                "org": reg,
-                "isp": reg,
-                "flag": flag,
-                "ip": ip,
-                "coordinates": f"{lat:.4f}, {lon:.4f}"
-            },
-            "reasons": [
-                f"{'URLhaus lists threat' if status == 'MALICIOUS' else 'URLhaus verified clean'}",
-                f"AI ML: {level} classification ({score}% score)"
-            ]
-        })
-    return logs
 
-scan_history = _seed_scan_history()
+def log_scan_record(record, user_email=None):
+    """Dynamically log an authentic user scan result (URL, QR, Email) into the SQLite database."""
+    try:
+        email = user_email or session.get("user") or "admin@cyberscape.test"
+        orig_source = record.get("source") or record.get("scan_type") or "URL"
+        db_source = str(orig_source).upper()
+        if db_source in ("INSPECTOR", "AUDIT"):
+            db_source = "URL"
+        score = int(record.get("score") or 0)
+        status = (record.get("status") or record.get("verdict") or "SAFE").upper()
+        level = record.get("level") or ("Low Risk" if status == "SAFE" else ("Critical Threat" if status == "MALICIOUS" else "Elevated Risk"))
+        time_str = record.get("time") or record.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        if db_source == "EMAIL":
+            sender = (
+                record.get("sender_check", {}).get("from_addr")
+                or record.get("from_addr")
+                or record.get("host")
+                or "Email Sender"
+            )
+            subject = (
+                record.get("header_analysis", {}).get("subject")
+                or record.get("subject")
+                or record.get("content_findings", {}).get("subject")
+                or ""
+            )
+            if subject and subject != "No Subject":
+                url = f"{sender} — {subject}"
+            else:
+                url = sender
+            domain = record.get("sender_check", {}).get("from_domain") or (sender.split("@")[-1] if "@" in sender else "email.destination")
+            registrar = (
+                record.get("origin_ip", {}).get("isp")
+                or record.get("origin_ip", {}).get("country")
+                or "Email Transmission Node"
+            )
+            if "passed_checks" not in record or not record.get("passed_checks"):
+                findings, passed_checks, technical = format_email_findings_and_checks(record)
+                record["findings"] = findings
+                record["passed_checks"] = passed_checks
+                record["technical_details"] = technical
+        else:
+            url = record.get("url") or record.get("target_url") or "Web Probe Destination"
+            parsed = urlparse(url)
+            domain = record.get("host") or record.get("domain") or parsed.hostname or "Autonomous"
+            registrar = record.get("registrar") or record.get("geo_ip", {}).get("org") or record.get("geo_ip", {}).get("isp") or "Enterprise Host Network"
+            if "passed_checks" not in record or not record.get("passed_checks"):
+                findings, passed_checks, technical = format_url_findings_and_checks(record)
+                record["findings"] = findings
+                record["passed_checks"] = passed_checks
+                record["technical_details"] = technical
+            if db_source == "QR":
+                record["payload_type"] = detect_qr_payload_type(url)
+
+        # Standardize top-level fields in record before json serialization
+        record["target"] = url
+        record["target_url"] = url
+        record["scan_type"] = db_source
+        record["source"] = orig_source
+        record["score"] = score
+        record["status"] = status
+        record["verdict"] = status
+        record["level"] = level
+        record["timestamp"] = time_str
+
+        with get_db() as connection:
+            connection.execute(
+                """
+                INSERT INTO scan_logs (user_email, target_url, source, score, status, level, time, domain, registrar, details_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (email, url, db_source, score, status, level, time_str, domain, registrar, json.dumps(record))
+            )
+    except Exception as e:
+        app.logger.warning(f"Could not persist scan to database: {e}")
+
 
 
 def login_required(view_func):
@@ -240,6 +285,39 @@ import redirect_tracer
 import qr_decoder
 import report_generator
 import email_analyzer
+import audit_service
+from backend.services.orchestrator import scan_url, clear_scan_cache
+
+
+def verdict_from_score(score: int) -> dict:
+    """
+    Centralized single source of truth for deriving security verdict from risk score.
+    Score ranges:
+      0..29  -> Low risk / Safe
+      30..69 -> Elevated risk / Suspicious
+      70..100 -> High risk / Malicious
+    """
+    score = max(0, min(100, int(score)))
+    if score >= 70:
+        return {
+            "status": "MALICIOUS",
+            "level": "High Risk",
+            "verdict": "High risk, do not open",
+            "color": "danger"
+        }
+    if score >= 30:
+        return {
+            "status": "SUSPICIOUS",
+            "level": "Elevated Risk",
+            "verdict": "Elevated risk, proceed with caution",
+            "color": "warning"
+        }
+    return {
+        "status": "SAFE",
+        "level": "Low Risk",
+        "verdict": "Low risk, verified safe",
+        "color": "safe"
+    }
 
 
 def query_urlhaus(url):
@@ -250,122 +328,19 @@ def analyze_url(url, trace_redirects_flag=True):
     """
     Perform deep multi-layered cybersecurity analysis across:
     1. AI ML Phishing Domain Detection
-    2. Real-Time Threat Intelligence (URLhaus, VirusTotal, Google Safe Browsing)
-    3. Geo-IP and Network Telemetry
-    4. Safe HTTP Redirect Sandbox & Tracer
+    2. Real-Time Threat Intelligence (URLhaus, VirusTotal, Google Safe Browsing, OpenPhish)
+    3. DNS, TLS, RDAP Domain Age & Geo-IP Telemetry
+    4. SSRF-Safe HTTP Sandbox Redirect Tracer
     """
-    cleaned = (url or "").strip()
-    if not cleaned:
-        return {
-            "url": cleaned,
-            "score": 0,
-            "status": "INVALID",
-            "level": "No Result",
-            "reasons": ["No URL provided for analysis."]
-        }
-    if not re.match(r"^https?://", cleaned, re.I):
-        return {
-            "url": cleaned,
-            "score": 0,
-            "status": "INVALID",
-            "level": "No Result",
-            "reasons": ["Only HTTP and HTTPS URLs can be checked."]
-        }
-    if not urlparse(cleaned).hostname:
-        return {
-            "url": cleaned,
-            "score": 0,
-            "status": "INVALID",
-            "level": "No Result",
-            "reasons": ["The URL does not contain a valid hostname."]
-        }
-
-    # 1. HTTP Redirect Chain Sandbox Tracer
-    redirect_data = redirect_tracer.trace_redirect_chain(cleaned) if trace_redirects_flag else {
-        "initial_url": cleaned, "final_url": cleaned, "hops_count": 1, "is_redirected": False, "has_shortener": False, "chain": []
-    }
-    final_destination = redirect_data.get("final_url") or cleaned
-
-    # 2. AI Machine Learning Domain Classification
-    ml_analysis = ml_engine.predict_phishing(cleaned)
-    # If redirected to a completely different domain, run ML on final destination too
-    if redirect_data.get("is_redirected") and urlparse(final_destination).hostname != urlparse(cleaned).hostname:
-        final_ml = ml_engine.predict_phishing(final_destination)
-        if final_ml["phishing_probability"] > ml_analysis["phishing_probability"]:
-            ml_analysis = final_ml
-
-    # 3. Real-Time Threat Intelligence Aggregator (URLhaus, VirusTotal, Safe Browsing)
-    threat_intel_data = threat_intel.aggregate_threat_intelligence(cleaned, ml_analysis)
-    urlhaus_result = threat_intel_data.get("urlhaus", {})
-
-    # 4. Geo-IP & Network Infrastructure Telemetry
-    geo_data = geo_resolver.resolve_geo_ip(final_destination)
-
-    # 5. Composite Risk Calculation & Verdict Formulation
-    reasons = []
-    # Guarantee URLhaus reason is always included for compliance & unit tests
-    if urlhaus_result.get("reason"):
-        reasons.append(urlhaus_result["reason"])
-
-    # ML findings
-    if ml_analysis["risk_factors"]:
-        for factor in ml_analysis["risk_factors"]:
-            reasons.append(f"AI Detection: {factor}")
-    else:
-        reasons.append(f"AI Model: Clean structural profile ({ml_analysis['confidence']}% Legitimate confidence)")
-
-    # Threat Intelligence Findings
-    reasons.append(f"Threat Intel: {threat_intel_data['summary']}")
-    if redirect_data.get("is_redirected"):
-        reasons.append(f"Redirect Sandbox: Destination resolved across {redirect_data['hops_count']} hop(s)")
-    if redirect_data.get("has_shortener"):
-        reasons.append("Redirect Sandbox: URL shortening service detected obscuring final target")
-
-    # Final Status and Score Determination
-    is_malicious = (
-        urlhaus_result.get("status") == "MALICIOUS" or
-        threat_intel_data.get("status") == "MALICIOUS" or
-        ml_analysis.get("label") == "Phishing"
-    )
-    is_suspicious = (
-        threat_intel_data.get("status") == "SUSPICIOUS" or
-        ml_analysis.get("label") == "Suspicious" or
-        redirect_data.get("has_shortener")
-    )
-
-    if is_malicious:
-        status = "MALICIOUS"
-        level = "High Risk" if urlhaus_result.get("status") == "MALICIOUS" else ml_analysis.get("risk_level", "High Risk")
-        score = max(85, int(ml_analysis.get("confidence", 85)))
-    elif is_suspicious:
-        status = "SUSPICIOUS"
-        level = "Elevated Risk"
-        score = max(50, int(ml_analysis.get("confidence", 50)))
-    elif urlhaus_result.get("status") == "NO_MATCH":
-        status = "SAFE"
-        level = "Low Risk"
-        score = min(15, max(0, 100 - int(ml_analysis.get("confidence", 95))))
-    else:
-        status = "UNKNOWN"
-        level = "Unable to Verify"
-        score = 25
-
-    return {
-        "url": cleaned,
-        "final_url": final_destination,
-        "score": score,
-        "status": status,
-        "level": level,
-        "reasons": reasons,
-        "ml_analysis": ml_analysis,
-        "threat_intel": threat_intel_data,
-        "geo_ip": geo_data,
-        "redirect_chain": redirect_data
-    }
+    return scan_url(url)
 
 @app.route("/")
 def home():
     return render_template("index.html")
+
+@app.route("/license")
+def license_page():
+    return render_template("license.html")
 
 @app.route("/scanner")
 @login_required
@@ -396,36 +371,78 @@ def blocked():
 @app.route("/dashboard", endpoint="dashboard")
 @login_required
 def admin():
-    # Normalize records so all expected fields are always present
+    current_user = session.get("user")
     normalized_history = []
-    for x in scan_history[::-1]:
-        url = x.get("url") or ""
-        parsed = urlparse(url)
-        proto = x.get("protocol") or (parsed.scheme.upper() if parsed.scheme else "HTTPS")
-        host = x.get("host") or x.get("geo_ip", {}).get("hostname") or parsed.hostname or "example.com"
-        registrar = x.get("registrar") or x.get("geo_ip", {}).get("org") or x.get("geo_ip", {}).get("isp") or "RESERVED-Internet Assigned Numbers Authority"
-        
-        normalized_history.append({
-            "url": url,
-            "protocol": proto,
-            "host": host,
-            "registrar": registrar,
-            "source": x.get("source", "URL"),
-            "score": x.get("score", 0),
-            "status": x.get("status", "SAFE"),
-            "level": x.get("level", "Low Risk"),
-            "time": x.get("time", datetime.now().strftime("%Y-%m-%d %H:%M:%S")),
-            "geo_ip": x.get("geo_ip") or {},
-            "reasons": x.get("reasons") or []
-        })
+    with get_db() as conn:
+        if current_user:
+            rows = conn.execute(
+                "SELECT * FROM scan_logs WHERE user_email = ? ORDER BY id DESC",
+                (current_user,)
+            ).fetchall()
+        else:
+            rows = []
+
+        for r in rows:
+            details = {}
+            if r["details_json"]:
+                try:
+                    details = json.loads(r["details_json"])
+                except Exception:
+                    details = {}
+            url = r["target_url"] or ""
+            parsed = urlparse(url)
+            proto = "HTTPS" if url.startswith("https://") else ("HTTP" if url.startswith("http://") else ("QR" if r["source"] == "QR" else "EMAIL"))
+            host = r["domain"] or parsed.hostname or "Autonomous"
+            registrar = r["registrar"] or "Enterprise Host Network"
+            geo_ip = details.get("geo_ip") or {
+                "city": "Autonomous",
+                "country": "Global Network",
+                "latitude": 37.751,
+                "longitude": -122.42,
+                "ip": "Unresolved"
+            }
+
+            sender = ""
+            subject = ""
+            auth_summary = ""
+            if r["source"] == "EMAIL":
+                sender = details.get("sender_check", {}).get("from_addr") or details.get("header_analysis", {}).get("from_addr") or r["domain"] or "Email Sender"
+                subject = details.get("header_analysis", {}).get("subject") or details.get("content_findings", {}).get("subject") or ""
+                spf_st = details.get("auth_results", {}).get("spf", {})
+                spf_val = spf_st.get("status") if isinstance(spf_st, dict) else str(spf_st or "PASS")
+                auth_summary = f"SPF: {spf_val}"
+
+            normalized_history.append({
+                "id": r["id"],
+                "url": url,
+                "protocol": proto,
+                "host": host,
+                "registrar": registrar,
+                "source": r["source"],
+                "score": r["score"],
+                "status": r["status"],
+                "level": r["level"],
+                "time": r["time"],
+                "geo_ip": geo_ip,
+                "sender": sender,
+                "subject": subject,
+                "auth_summary": auth_summary,
+                "reasons": details.get("reasons") or []
+            })
+
+    url_count = sum(1 for x in normalized_history if x.get("source") in ("URL", "INSPECTOR", "AUDIT"))
+    qr_count = sum(1 for x in normalized_history if x.get("source") == "QR")
+    email_count = sum(1 for x in normalized_history if x.get("source") == "EMAIL")
+    total_count = url_count + qr_count + email_count
 
     stats = {
-        "total": len(normalized_history),
-        "safe": sum(x["status"] == "SAFE" for x in normalized_history),
-        "suspicious": sum(x["status"] == "SUSPICIOUS" for x in normalized_history),
-        "blocked": sum(x["status"] == "MALICIOUS" for x in normalized_history),
-        "qr": sum(x.get("source") == "QR" for x in normalized_history),
-        "url": sum(x.get("source") == "URL" for x in normalized_history)
+        "total": total_count,
+        "safe": sum(1 for x in normalized_history if x["status"] == "SAFE"),
+        "suspicious": sum(1 for x in normalized_history if x["status"] == "SUSPICIOUS"),
+        "blocked": sum(1 for x in normalized_history if x["status"] == "MALICIOUS"),
+        "qr": qr_count,
+        "url": url_count,
+        "email": email_count
     }
 
     threat_map_records = []
@@ -437,7 +454,7 @@ def admin():
         lon = geo.get("longitude")
         if lat is not None and lon is not None:
             country = geo.get("country", "Unknown")
-            flag = geo.get("flag", "🌐")
+            flag = geo.get("flag", "")
             threat_map_records.append({
                 "url": row["url"],
                 "host": row["host"],
@@ -470,6 +487,7 @@ def admin():
         total_count=stats["total"],
         url_count=stats["url"],
         qr_count=stats["qr"],
+        email_count=stats["email"],
         threat_map_json=json.dumps(threat_map_records),
         top_hotspots=top_hotspots,
         user=session.get("user"),
@@ -479,25 +497,159 @@ def admin():
 @app.route("/threat-map-data")
 @login_required
 def threat_map_data():
+    current_user = session.get("user")
     records = []
-    for x in scan_history:
-        geo = x.get("geo_ip") or {}
-        lat = geo.get("latitude")
-        lon = geo.get("longitude")
-        if lat is not None and lon is not None:
-            records.append({
-                "url": x.get("url"),
-                "host": x.get("host") or geo.get("hostname"),
-                "status": x.get("status"),
-                "score": x.get("score"),
-                "lat": lat,
-                "lon": lon,
-                "city": geo.get("city"),
-                "country": geo.get("country"),
-                "flag": geo.get("flag"),
-                "ip": geo.get("ip")
-            })
+    with get_db() as conn:
+        if current_user:
+            rows = conn.execute("SELECT * FROM scan_logs WHERE user_email = ? ORDER BY id DESC", (current_user,)).fetchall()
+        else:
+            rows = []
+        for r in rows:
+            details = {}
+            if r["details_json"]:
+                try:
+                    details = json.loads(r["details_json"])
+                except Exception:
+                    pass
+            geo = details.get("geo_ip") or {}
+            lat = geo.get("latitude")
+            lon = geo.get("longitude")
+            if lat is not None and lon is not None:
+                records.append({
+                    "url": r["target_url"],
+                    "host": r["domain"],
+                    "status": r["status"],
+                    "score": r["score"],
+                    "lat": lat,
+                    "lon": lon,
+                    "city": geo.get("city"),
+                    "country": geo.get("country"),
+                    "flag": geo.get("flag"),
+                    "ip": geo.get("ip")
+                })
     return jsonify({"success": True, "count": len(records), "data": records})
+
+@app.route("/api/dashboard/stats", methods=["GET"])
+@login_required
+def api_dashboard_stats():
+    """Live dashboard aggregate telemetry metrics from SQLite database."""
+    try:
+        current_user = session.get("user")
+        with get_db() as conn:
+            if current_user:
+                safe = conn.execute("SELECT COUNT(*) FROM scan_logs WHERE user_email = ? AND status = 'SAFE'", (current_user,)).fetchone()[0]
+                suspicious = conn.execute("SELECT COUNT(*) FROM scan_logs WHERE user_email = ? AND status = 'SUSPICIOUS'", (current_user,)).fetchone()[0]
+                blocked = conn.execute("SELECT COUNT(*) FROM scan_logs WHERE user_email = ? AND status = 'MALICIOUS'", (current_user,)).fetchone()[0]
+                url_count = conn.execute("SELECT COUNT(*) FROM scan_logs WHERE user_email = ? AND (source = 'URL' OR source = 'INSPECTOR' OR source = 'AUDIT')", (current_user,)).fetchone()[0]
+                qr_count = conn.execute("SELECT COUNT(*) FROM scan_logs WHERE user_email = ? AND source = 'QR'", (current_user,)).fetchone()[0]
+                email_count = conn.execute("SELECT COUNT(*) FROM scan_logs WHERE user_email = ? AND source = 'EMAIL'", (current_user,)).fetchone()[0]
+                total = url_count + qr_count + email_count
+            else:
+                total = safe = suspicious = blocked = url_count = qr_count = email_count = 0
+
+        return jsonify({
+            "success": True,
+            "total": total,
+            "safe": safe,
+            "suspicious": suspicious,
+            "blocked": blocked,
+            "url": url_count,
+            "qr": qr_count,
+            "email": email_count,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/dashboard/logs", methods=["GET"])
+@login_required
+def api_dashboard_logs():
+    """Dynamic paginated ingress logs with search filtering from SQLite database."""
+    try:
+        current_user = session.get("user")
+        page = max(1, int(request.args.get("page", 1)))
+        per_page = min(100, max(5, int(request.args.get("per_page", 20))))
+        offset = (page - 1) * per_page
+        q = (request.args.get("q") or "").strip().lower()
+        status_filter = (request.args.get("status") or "").strip().upper()
+        source_filter = (request.args.get("source") or "").strip().upper()
+
+        where_clauses = ["user_email = ?"] if current_user else ["1=0"]
+        params = [current_user] if current_user else []
+
+        if q:
+            where_clauses.append("(lower(target_url) LIKE ? OR lower(domain) LIKE ? OR lower(registrar) LIKE ?)")
+            param_q = f"%{q}%"
+            params.extend([param_q, param_q, param_q])
+
+        if status_filter in ["SAFE", "SUSPICIOUS", "MALICIOUS"]:
+            where_clauses.append("status = ?")
+            params.append(status_filter)
+
+        if source_filter == "URL":
+            where_clauses.append("(source = 'URL' OR source = 'INSPECTOR' OR source = 'AUDIT')")
+        elif source_filter in ["QR", "EMAIL"]:
+            where_clauses.append("source = ?")
+            params.append(source_filter)
+
+        where_str = " AND ".join(where_clauses)
+
+        with get_db() as conn:
+            total_matches = conn.execute(f"SELECT COUNT(*) FROM scan_logs WHERE {where_str}", params).fetchone()[0]
+            query = f"SELECT * FROM scan_logs WHERE {where_str} ORDER BY id DESC LIMIT ? OFFSET ?"
+            query_params = list(params) + [per_page, offset]
+            rows = conn.execute(query, query_params).fetchall()
+
+            logs = []
+            for r in rows:
+                details = {}
+                if r["details_json"]:
+                    try:
+                        details = json.loads(r["details_json"])
+                    except Exception:
+                        details = {}
+                geo = details.get("geo_ip") or {}
+                source_val = (r["source"] or "URL").upper()
+                proto = "HTTPS" if (r["target_url"] or "").startswith("https://") else ("HTTP" if (r["target_url"] or "").startswith("http://") else ("QR" if source_val == "QR" else "EMAIL"))
+
+                sender = ""
+                subject = ""
+                auth_summary = ""
+                if source_val == "EMAIL":
+                    sender = details.get("sender_check", {}).get("from_addr") or details.get("header_analysis", {}).get("from_addr") or r["domain"] or "Email Sender"
+                    subject = details.get("header_analysis", {}).get("subject") or details.get("content_findings", {}).get("subject") or ""
+                    spf_st = details.get("auth_results", {}).get("spf", {})
+                    spf_val = spf_st.get("status") if isinstance(spf_st, dict) else str(spf_st or "PASS")
+                    auth_summary = f"SPF: {spf_val}"
+
+                logs.append({
+                    "id": r["id"],
+                    "url": r["target_url"],
+                    "source": source_val,
+                    "protocol": proto,
+                    "score": r["score"],
+                    "status": r["status"],
+                    "level": r["level"],
+                    "time": r["time"],
+                    "domain": r["domain"],
+                    "host": r["domain"],
+                    "registrar": r["registrar"],
+                    "geo_ip": geo,
+                    "sender": sender,
+                    "subject": subject,
+                    "auth_summary": auth_summary
+                })
+
+        return jsonify({
+            "success": True,
+            "logs": logs,
+            "total": total_matches,
+            "page": page,
+            "per_page": per_page,
+            "pages": (total_matches + per_page - 1) // per_page if total_matches else 1
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -572,9 +724,11 @@ def register():
 @app.route("/logout")
 def logout():
     session.clear()
-    return redirect(url_for("login", error="You have been logged out."))
+    flash("You have been logged out.", "info")
+    return redirect(url_for("login"))
 
 @app.post("/inspect")
+@rate_limit(limit=60, window_seconds=60)
 def inspect():
     if not session.get("user") and not app.config.get("TESTING"):
         return jsonify({"error": "Authentication required. Please sign in or register to run threat scans."}), 401
@@ -583,14 +737,18 @@ def inspect():
     url = (data.get("url") or "").strip()
     if not url:
         return jsonify({"error": "Please enter a URL to inspect."}), 400
+    if len(url) > 2048:
+        return jsonify({"error": "URL exceeds maximum supported length (2,048 characters)."}), 400
 
     result = analyze_url(url)
     result["source"] = data.get("source", "INSPECTOR")
     result["time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     scan_history.append(result)
+    log_scan_record(result, session.get("user"))
     return jsonify(result)
 
 @app.post("/check-url")
+@rate_limit(limit=60, window_seconds=60)
 def check_url():
     if not session.get("user") and not app.config.get("TESTING"):
         return jsonify({"error": "Authentication required. Please sign in or register to run threat scans."}), 401
@@ -599,31 +757,39 @@ def check_url():
     url = (data.get("url") or "").strip()
     if not url:
         return jsonify({"error": "Please enter a URL."}), 400
+    if len(url) > 2048:
+        return jsonify({"error": "URL exceeds maximum supported length (2,048 characters)."}), 400
 
     result = analyze_url(url)
     result["source"] = "URL"
     result["time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     scan_history.append(result)
+    log_scan_record(result, session.get("user"))
     return jsonify(result)
 
 @app.post("/qr-result")
+@rate_limit(limit=60, window_seconds=60)
 def qr_result():
     if not session.get("user") and not app.config.get("TESTING"):
         return jsonify({"error": "Authentication required. Please sign in or register to run threat scans."}), 401
 
     data = request.get_json(silent=True) or {}
-    url = (data.get("url") or "").strip()
+    url = (data.get("url") or data.get("payload") or "").strip()
     if not url:
-        return jsonify({"error": "No URL was extracted from the QR image."}), 400
+        return jsonify({"error": "No QR payload was extracted from the QR image."}), 400
+    if len(url) > 4096:
+        return jsonify({"error": "QR payload exceeds maximum supported length (4,096 characters)."}), 400
 
-    result = analyze_url(url)
+    result = scan_qr_payload(url)
     result["source"] = "QR"
     result["time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     scan_history.append(result)
+    log_scan_record(result, session.get("user"))
     return jsonify(result)
 
 @app.post("/decode-qr")
 @login_required
+@rate_limit(limit=60, window_seconds=60)
 def decode_qr():
     # Support multipart file upload
     if "qr_file" in request.files or "image" in request.files:
@@ -631,6 +797,10 @@ def decode_qr():
         if not file or file.filename == "":
             return jsonify({"success": False, "error": "No file uploaded"}), 400
         image_bytes = file.read()
+        if not image_bytes or len(image_bytes) == 0:
+            return jsonify({"success": False, "error": "The uploaded image file is empty."}), 400
+        if len(image_bytes) > 15 * 1024 * 1024:
+            return jsonify({"success": False, "error": "Image file exceeds maximum allowed size of 15 MB."}), 400
         res = qr_decoder.decode_qr_image_bytes(image_bytes)
         return jsonify(res)
 
@@ -642,6 +812,42 @@ def decode_qr():
         return jsonify(res)
 
     return jsonify({"success": False, "error": "No image data or file provided."}), 400
+
+@app.post("/api/audit")
+@rate_limit(limit=60, window_seconds=60)
+def api_audit():
+    if not session.get("user") and not app.config.get("TESTING"):
+        return jsonify({"error": "Authentication required. Please sign in or register to run security audits."}), 401
+
+    data = request.get_json(silent=True) or {}
+    url = (data.get("url") or data.get("target_url") or "").strip()
+    authorized = bool(data.get("authorized", False))
+
+    if not authorized:
+        return jsonify({"error": "Target authorization checkbox must be confirmed before auditing."}), 400
+
+    if not url:
+        return jsonify({"error": "Please provide a target URL to audit."}), 400
+
+    try:
+        audit_res = audit_service.run_security_audit(url, authorized=authorized)
+        audit_record = {
+            "url": audit_res["target_url"],
+            "final_url": audit_res["final_url"],
+            "score": audit_res["risk_score"],
+            "status": audit_res["status"],
+            "level": audit_res["threat_level"],
+            "source": "AUDIT",
+            "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "reasons": audit_res["reasons"]
+        }
+        scan_history.append(audit_record)
+        log_scan_record(audit_record, session.get("user"))
+        return jsonify(audit_res)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": f"Security audit encountered an error: {str(e)}"}), 500
 
 @app.route("/generate-report", methods=["GET", "POST"])
 @login_required
@@ -656,17 +862,36 @@ def generate_report():
     if not target_url:
         return jsonify({"error": "No target URL provided for forensic report generation."}), 400
 
-    # If full scan payload was passed, use it; otherwise run a fresh analysis
+    # If full scan payload was passed, use it; otherwise check database or run analysis
     if "ml_analysis" in data and "threat_intel" in data and "geo_ip" in data:
         scan_payload = data
     else:
-        scan_payload = analyze_url(target_url)
-        scan_payload["source"] = data.get("source", "Forensic Audit")
-        scan_payload["time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with get_db() as conn:
+            saved = conn.execute(
+                "SELECT details_json FROM scan_logs WHERE target_url = ? ORDER BY id DESC LIMIT 1",
+                (target_url,)
+            ).fetchone()
+            if saved and saved["details_json"]:
+                try:
+                    scan_payload = json.loads(saved["details_json"])
+                except Exception:
+                    scan_payload = None
+            else:
+                scan_payload = None
 
-    pdf_bytes = report_generator.generate_forensic_pdf(scan_payload)
-    safe_host = re.sub(r"[^a-zA-Z0-9_-]", "_", urlparse(target_url).hostname or "target")
-    filename = f"CyberScape_Forensic_Report_{safe_host}.pdf"
+        if not scan_payload:
+            scan_payload = analyze_url(target_url)
+            scan_payload["source"] = data.get("source", "Forensic Audit")
+            scan_payload["time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # If it was an Email scan, generate email report; else generate URL/QR forensic report
+    if scan_payload.get("source") == "EMAIL" or "header_analysis" in scan_payload or "email_body_analysis" in scan_payload:
+        pdf_bytes = report_generator.generate_email_forensic_pdf(scan_payload)
+        filename = f"CyberScape_Email_Forensic_Report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    else:
+        pdf_bytes = report_generator.generate_forensic_pdf(scan_payload)
+        safe_host = re.sub(r"[^a-zA-Z0-9_-]", "_", urlparse(target_url).hostname or "target")
+        filename = f"CyberScape_Forensic_Report_{safe_host}.pdf"
 
     return send_file(
         BytesIO(pdf_bytes),
@@ -676,31 +901,150 @@ def generate_report():
     )
 
 @app.post("/analyze-email")
+@rate_limit(limit=60, window_seconds=60)
 def analyze_email():
     if not session.get("user") and not app.config.get("TESTING"):
         return jsonify({"error": "Authentication required. Please sign in or register to run threat scans."}), 401
 
-    data = request.get_json(silent=True) or {}
-    header_text = data.get("header_text", "")
-    content_text = data.get("content_text", "")
-    if not header_text.strip() and not content_text.strip():
-        return jsonify({"error": "Please provide an email header or email message content to analyze."}), 400
+    try:
+        # 1. Support .eml file upload via multipart/form-data
+        if "eml_file" in request.files or "file" in request.files:
+            file = request.files.get("eml_file") or request.files.get("file")
+            if not file or file.filename == "":
+                return jsonify({"error": "No .eml file was selected for upload."}), 400
+            file_bytes = file.read()
+            if not file_bytes:
+                return jsonify({"error": "The uploaded .eml file is empty."}), 400
+            if len(file_bytes) > 15 * 1024 * 1024:
+                return jsonify({"error": "Email file exceeds maximum allowed size of 15 MB."}), 400
+            result = email_analyzer.analyze_eml_file_or_bytes(file_bytes, filename=file.filename)
+        else:
+            # 2. Support JSON payloads
+            data = request.get_json(silent=True) or {}
+            raw_email = data.get("raw_email") or data.get("eml_content") or ""
+            if raw_email and str(raw_email).strip():
+                if len(str(raw_email).encode("utf-8")) > 15 * 1024 * 1024:
+                    return jsonify({"error": "Raw email exceeds maximum allowed size of 15 MB."}), 400
+                result = email_analyzer.analyze_eml_file_or_bytes(raw_email)
+            else:
+                header_text = data.get("header") or data.get("header_text") or ""
+                content_text = data.get("body") or data.get("content_text") or data.get("content") or ""
 
-    result = email_analyzer.full_email_investigation(header_text, content_text)
-    result["time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                if not str(header_text).strip() and not str(content_text).strip():
+                    return jsonify({"error": "Please provide an email header, email message content, or upload an .eml file."}), 400
 
-    # Optionally log to scan history
-    scan_history.append({
-        "url": result.get("header_analysis", {}).get("from_addr") or "Email Message",
-        "score": result.get("score", 0),
-        "status": result.get("verdict", "UNKNOWN"),
-        "level": result.get("level", "Standard"),
-        "reasons": result.get("risk_factors", []),
-        "source": "EMAIL",
-        "time": result["time"]
-    })
+                result = email_analyzer.full_email_investigation(header_text, content_text)
+        result["time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    return jsonify(result)
+        # Log to scan history and persist to database
+        email_sender = (
+            result.get("sender_check", {}).get("from_addr")
+            or result.get("header_analysis", {}).get("from_addr")
+            or result.get("sender_check", {}).get("from_domain")
+            or "Email Message"
+        )
+        email_subject = result.get("header_analysis", {}).get("subject") or result.get("content_findings", {}).get("subject") or ""
+        email_title = f"{email_sender} — {email_subject}" if email_subject and email_subject != "No Subject" else email_sender
+
+        findings, passed_checks, technical = format_email_findings_and_checks(result)
+        email_entry = {
+            "url": email_title,
+            "target_url": email_title,
+            "target": email_title,
+            "score": result.get("score", 0),
+            "status": result.get("verdict", "UNKNOWN"),
+            "verdict": result.get("verdict", "UNKNOWN"),
+            "level": result.get("level", "Standard"),
+            "reasons": result.get("risk_factors", []),
+            "source": "EMAIL",
+            "time": result["time"],
+            "host": result.get("sender_check", {}).get("from_domain") or "email.destination",
+            "registrar": result.get("origin_ip", {}).get("isp") or "Email Transmission Node",
+            "findings": findings,
+            "passed_checks": passed_checks,
+            "technical_details": technical,
+            "header_analysis": result.get("header_analysis", {}),
+            "email_body_analysis": result.get("content_findings", {}),
+            "sender_check": result.get("sender_check", {}),
+            "auth_results": result.get("auth_results", {}),
+            "origin_ip": result.get("origin_ip", {}),
+            "links": result.get("links", []),
+            "recommendations": result.get("recommendations", [])
+        }
+        scan_history.append(email_entry)
+        log_scan_record(email_entry, session.get("user"))
+
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f"Email analysis error: {e}", exc_info=True)
+        return jsonify({"error": f"Failed to analyze email: {str(e)}"}), 500
+
+@app.route("/api/history/<int:record_id>", methods=["GET"])
+@login_required
+def api_history_detail(record_id):
+    """Retrieve full structured forensic details for inspection modal."""
+    current_user = session.get("user")
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM scan_logs WHERE id = ?", (record_id,)).fetchone()
+        if not row:
+            return jsonify({"success": False, "error": "Forensic audit record not found."}), 404
+
+        # Security: ownership verification
+        if row["user_email"] != current_user and current_user != "admin@cyberscape.test":
+            return jsonify({"success": False, "error": "Unauthorized access to this forensic record."}), 403
+
+        record = format_history_record_for_inspect(dict(row))
+        return jsonify({"success": True, "record": record})
+
+@app.route("/history/<int:record_id>/report.pdf", methods=["GET"])
+@login_required
+def history_record_pdf(record_id):
+    """Download enterprise ReportLab PDF forensic report for a historical scan record."""
+    current_user = session.get("user")
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM scan_logs WHERE id = ?", (record_id,)).fetchone()
+        if not row:
+            return jsonify({"error": "Forensic audit record not found."}), 404
+
+        # Security: ownership verification
+        if row["user_email"] != current_user and current_user != "admin@cyberscape.test":
+            return jsonify({"error": "Unauthorized access to this forensic report."}), 403
+
+        record = format_history_record_for_inspect(dict(row))
+        pdf_bytes = report_generator.generate_history_record_pdf(record)
+
+        scan_type = (record.get("scan_type") or "AUDIT").upper()
+        date_str = datetime.now().strftime("%Y%m%d")
+        filename = f"CyberScape_Report_{scan_type}_{record_id}_{date_str}.pdf"
+
+        return Response(
+            pdf_bytes,
+            mimetype="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Type": "application/pdf"
+            }
+        )
+
+@app.route("/history/export-all.pdf", methods=["GET"])
+@login_required
+def history_export_all_pdf():
+    """Download consolidated audit trail PDF covering all scans for authenticated user."""
+    current_user = session.get("user")
+    with get_db() as conn:
+        rows = conn.execute("SELECT * FROM scan_logs WHERE user_email = ? ORDER BY id DESC", (current_user,)).fetchall()
+        records = [format_history_record_for_inspect(dict(r)) for r in rows]
+        pdf_bytes = report_generator.generate_all_history_pdf(records, current_user)
+        filename = f"CyberScape_All_History_{datetime.now().strftime('%Y%m%d')}.pdf"
+
+        return Response(
+            pdf_bytes,
+            mimetype="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+                "Content-Type": "application/pdf"
+            }
+        )
 
 @app.route("/generate-email-report", methods=["GET", "POST"])
 @login_required

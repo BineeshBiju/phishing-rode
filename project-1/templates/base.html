@@ -8,41 +8,162 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Schibsted+Grotesk:ital,wght@0,400;0,500;0,700;1,400;1,700&display=swap"
     rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            ground: '#E8EAE4',
+            panel: '#F6F7F3',
+            ink: '#12161D',
+            muted: '#4A5260',
+            line: '#C9CDC4',
+            danger: '#C23A0C',
+            dangerSoft: '#F08A65',
+            safe: '#1D6B4C',
+            suspicious: '#8A5A00',
+            inkSoft: '#1E2430',
+            inkLine: '#3A414D',
+          },
+          fontFamily: {
+            sans: ['"Schibsted Grotesk"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+          },
+          borderRadius: {
+            btn: '6px',
+            input: '8px',
+            panel: '10px',
+            panelLg: '12px',
+            chip: '999px',
+          },
+          borderWidth: {
+            '1.5': '1.5px',
+          }
+        }
+      }
+    };
+  </script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/responsive.css') }}">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/cyberscape-logo.svg') }}">
+  <style>
+    :root {
+      --ground: #E8EAE4;
+      --panel: #F6F7F3;
+      --ink: #12161D;
+      --muted: #4A5260;
+      --line: #C9CDC4;
+      --danger: #C23A0C;
+      --danger-soft: #F08A65;
+      --safe: #1D6B4C;
+      --ink-soft: #1E2430;
+      --ink-line: #3A414D;
+      --logo-mark: #12161D;
+      --logo-text: #12161D;
+      font-family: 'Schibsted Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    body {
+      background-color: #E8EAE4 !important;
+      color: #12161D !important;
+      font-family: 'Schibsted Grotesk', sans-serif !important;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      font-family: 'Schibsted Grotesk', sans-serif !important;
+      letter-spacing: -0.025em;
+      line-height: 1.05;
+    }
+    .font-mono {
+      font-family: 'JetBrains Mono', monospace !important;
+    }
+    a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+      outline: 2px solid #12161D !important;
+      outline-offset: 2px !important;
+    }
+  </style>
 </head>
 
-<body>
-  <div class="bg-grid"></div>
-  <header class="nav">
-    <a class="brand brand-cyberspace brand-cyberscape" href="{{ url_for('home') }}" aria-label="CyberScape Home">
-      {% set logo_id = "header" %}
-      {% set logo_class = "nav-logo" %}
-      {% include "components/logo.html" %}
-      <span class="sr-only">CYBERSPACE</span>
-    </a>
-    <nav>
-      <a href="{{ url_for('home') }}" class="{% if request.endpoint == 'home' %}active{% endif %}">Overview</a>
-      <a href="{{ url_for('scanner') if session.get('user') else url_for('login') }}" class="{% if request.endpoint == 'scanner' %}active{% endif %}">URL Scanner</a>
-      <a href="{{ url_for('qr_scanner') if session.get('user') else url_for('login') }}" class="{% if request.endpoint == 'qr_scanner' %}active{% endif %}">QR Scanner</a>
-      <a href="{{ url_for('email_analyzer_page') if session.get('user') else url_for('login') }}"
-        class="{% if request.endpoint == 'email_analyzer_page' %}active{% endif %}">AI Email Analyzer</a>
-      {% if session.get('user') %}
-      <a href="{{ url_for('dashboard') }}"
-        class="{% if request.endpoint in ['admin', 'dashboard'] or active_nav == 'dashboard' %}active{% endif %}">Dashboard</a>
-      <a href="{{ url_for('logout') }}" class="nav-logout">Logout</a>
-      {% else %}
-      <a href="{{ url_for('login') }}" class="nav-auth-link">Login</a>
-      <a href="{{ url_for('register') }}" class="nav-auth-btn">Sign Up</a>
-      {% endif %}
-    </nav>
-  </header>
-  <main>{% block content %}{% endblock %}</main>
+<body class="bg-ground text-ink font-sans antialiased min-h-screen flex flex-col selection:bg-ink selection:text-ground">
+  <!-- Shared Restyled Header -->
+  <header class="w-full bg-ground border-b border-line px-6 lg:px-12 py-5 sticky top-0 z-40">
+    <div class="max-w-[1240px] mx-auto flex items-center justify-between gap-6">
+      <a class="brand brand-cyberspace brand-cyberscape flex items-center shrink-0" href="{{ url_for('home') }}" aria-label="CyberScape Home">
+        {% set logo_id = "header" %}
+        {% set logo_class = "h-8 w-auto max-w-[155px]" %}
+        {% include "components/logo.html" %}
+        <span class="sr-only">CYBERSPACE</span>
+      </a>
+      
+      <!-- Center Desktop Navigation -->
+      <nav class="hidden md:flex items-center gap-8 text-[15px]">
+        <a href="{{ url_for('scanner') if session.get('user') else url_for('login') }}"
+           class="{% if request.endpoint in ['scanner', 'home'] %}font-bold text-ink border-b-2 border-ink{% else %}text-muted border-b-2 border-transparent hover:text-ink hover:border-line{% endif %} pb-1 transition-colors duration-150">
+          URL Scanner
+        </a>
+        <a href="{{ url_for('qr_scanner') if session.get('user') else url_for('login') }}"
+           class="{% if request.endpoint == 'qr_scanner' %}font-bold text-ink border-b-2 border-ink{% else %}text-muted border-b-2 border-transparent hover:text-ink hover:border-line{% endif %} pb-1 transition-colors duration-150">
+          QR Scanner
+        </a>
+        <a href="{{ url_for('email_analyzer_page') if session.get('user') else url_for('login') }}"
+           class="{% if request.endpoint == 'email_analyzer_page' %}font-bold text-ink border-b-2 border-ink{% else %}text-muted border-b-2 border-transparent hover:text-ink hover:border-line{% endif %} pb-1 transition-colors duration-150">
+          Email Analyzer<span class="sr-only"> AI Email Analyzer</span>
+        </a>
+        <a href="{{ url_for('dashboard') if session.get('user') else url_for('login') }}"
+           class="{% if request.endpoint in ['admin', 'dashboard'] or active_nav == 'dashboard' %}font-bold text-ink border-b-2 border-ink{% else %}text-muted border-b-2 border-transparent hover:text-ink hover:border-line{% endif %} pb-1 transition-colors duration-150">
+          History<span class="sr-only"> Dashboard</span>
+        </a>
+      </nav>
 
-  <footer><span>Cyber Scape</span><span>Threat intelligence for everyday links</span></footer>
+      <!-- Right Header Actions -->
+      <div class="flex items-center gap-4">
+        {% if session.get('user') %}
+        <a href="{{ url_for('logout') }}" class="nav-logout">Logout</a>
+        {% else %}
+        <a href="{{ url_for('login') }}"
+           class="nav-auth-link px-3 py-2 text-muted hover:text-ink text-sm font-medium transition-colors">
+          Sign in<span class="sr-only"> Login</span>
+        </a>
+        <a href="{{ url_for('register') }}"
+           class="nav-auth-btn inline-flex items-center justify-center px-4 py-2 border border-ink text-ink rounded-[6px] text-sm font-medium hover:bg-ink hover:text-ground transition-colors duration-150">
+          Sign Up
+        </a>
+        {% endif %}
+
+        <!-- Mobile Menu Toggle Button -->
+        <button type="button" id="mobileMenuBtn" class="md:hidden p-2 text-ink rounded-[6px] border border-line" aria-label="Toggle navigation menu">
+          <i data-lucide="menu" class="w-5 h-5"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Navigation Drawer -->
+    <div id="mobileMenuDrawer" class="hidden md:hidden pt-4 pb-2 border-t border-line mt-4 flex flex-col gap-3 text-base">
+      <a href="{{ url_for('scanner') if session.get('user') else url_for('login') }}" class="py-1 text-ink font-medium">URL Scanner</a>
+      <a href="{{ url_for('qr_scanner') if session.get('user') else url_for('login') }}" class="py-1 text-ink font-medium">QR Scanner</a>
+      <a href="{{ url_for('email_analyzer_page') if session.get('user') else url_for('login') }}" class="py-1 text-ink font-medium">Email Analyzer</a>
+      <a href="{{ url_for('dashboard') if session.get('user') else url_for('login') }}" class="py-1 text-ink font-medium">History (Dashboard)</a>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-grow w-full max-w-[1240px] mx-auto px-6 lg:px-12">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Editorial Flat Footer -->
+  <footer class="w-full border-t border-line py-8 px-6 lg:px-12 mt-20">
+    <div class="max-w-[1240px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted text-center sm:text-left">
+      <div class="flex items-center gap-2 flex-wrap justify-center sm:justify-start">
+        <span id="copyrightNotice">&copy; 2026 CyberScape. All rights reserved.</span>
+        <span class="text-line" aria-hidden="true">&bull;</span>
+        <a href="{{ url_for('license_page') }}" class="underline hover:text-ink transition-colors">License</a>
+      </div>
+      <span>Threat intelligence for everyday links</span>
+    </div>
+  </footer>
+
   <div id="cyberAuthBridge"
        data-authenticated="{{ 'true' if session.get('user') else 'false' }}"
        data-user="{{ session.get('user') or '' }}"
@@ -51,6 +172,10 @@
        style="display: none;"></div>
   <script>
     (function () {
+      var cNotice = document.getElementById("copyrightNotice");
+      if (cNotice) {
+        cNotice.innerHTML = "&copy; 2026 CyberScape. All rights reserved.";
+      }
       var bridge = document.getElementById("cyberAuthBridge");
       window.CYBER_AUTH = {
         isAuthenticated: bridge ? bridge.getAttribute("data-authenticated") === "true" : false,
@@ -58,17 +183,24 @@
         loginUrl: bridge ? bridge.getAttribute("data-login-url") : "/login",
         registerUrl: bridge ? bridge.getAttribute("data-register-url") : "/register"
       };
+      var mBtn = document.getElementById("mobileMenuBtn");
+      var mDrawer = document.getElementById("mobileMenuDrawer");
+      if (mBtn && mDrawer) {
+        mBtn.addEventListener("click", function() {
+          mDrawer.classList.toggle("hidden");
+        });
+      }
     })();
   </script>
-  {% if not session.get('user') and request.endpoint not in ['login', 'register'] %}
+  {% if not session.get('user') and request.endpoint not in ['login', 'register', 'license_page'] %}
   <script>
-    // Mandatory Authentication Gate: Any click anywhere instantly redirects to the login page without using any API
+    // Mandatory Authentication Gate
     document.addEventListener("click", function(e) {
       var link = e.target.closest("a");
       if (link) {
         var href = link.getAttribute("href") || "";
-        if (href.indexOf("/login") !== -1 || href.indexOf("/register") !== -1) {
-          return; // Allow direct navigation to login or register
+        if (href.indexOf("/login") !== -1 || href.indexOf("/register") !== -1 || href.indexOf("/license") !== -1) {
+          return; // Allow direct navigation to login, register, or license
         }
       }
       if (e.target.closest(".auth-form, .auth-panel, #loginForm, #registerForm")) {
@@ -80,7 +212,18 @@
     }, true);
   </script>
   {% endif %}
-  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script defer src="https://unpkg.com/lucide@latest"></script>
+  <script defer crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script defer crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script defer src="{{ url_for('static', filename='js/ScannerApp.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      if (window.lucide && typeof window.lucide.createIcons === "function") {
+        window.lucide.createIcons();
+      }
+    });
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 

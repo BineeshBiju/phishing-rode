@@ -50,8 +50,8 @@ def test_guest_landing_page_features_visible_dashboard_not_visible(guest_client)
     # Brand
     assert "CYBERSPACE" in html
 
-    # All features are visible
-    assert "Overview" in html
+    # Feature navigation tabs (Overview removed, URL Scanner is default active)
+    assert "Overview" not in html
     assert "URL Scanner" in html
     assert "QR Scanner" in html
     assert "AI Email Analyzer" in html

@@ -7,6 +7,10 @@ opencv-python-headless>=4.9.0
 pyzbar>=0.1.9
 pillow>=10.0.0
 mail-parser>=4.0.0
+python-dotenv>=1.0.0
+flask-cors>=4.0.0
+dnspython>=2.6.0
+
 
 
 

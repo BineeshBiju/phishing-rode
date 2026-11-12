@@ -56,7 +56,7 @@ def test_qr_scanner_page_layout_and_navigation(client):
 
     # 1. Top Navigation Bar
     assert "CYBERSPACE" in html
-    assert "Overview" in html
+    assert "Overview" not in html
     assert "URL Scanner" in html
     assert "QR Scanner" in html
     assert "AI Email Analyzer" in html

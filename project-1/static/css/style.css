@@ -1,5 +1,7 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-
+/*
+ * Copyright (c) 2026 Jerald M Jolly, Bineesh Biju, Aston Mathew Felix, Adhul K R
+ * See LICENSE for details.
+ */
 /* ==========================================================================
    Cyber Scape — Formal Enterprise Security Theme
    Typography: Inter (Primary UI) & JetBrains Mono (Data / Code / Feeds)
@@ -427,15 +429,16 @@ main {
 }
 
 /* ==========================================================================
-   Overview / Hero Section
+   URL Scanner / Hero Section
    ========================================================================== */
 
 .hero {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
-  gap: 52px;
+  grid-template-columns: 1fr;
+  gap: 36px;
   align-items: center;
   padding: 24px 0 56px;
+  max-width: 860px;
 }
 
 .hero h1 {
@@ -1279,6 +1282,7 @@ tbody tr:hover td {
   font-size: 0.8125rem;
 }
 
+
 .message-box {
   padding: 12px 16px;
   border-radius: var(--radius-sm);
@@ -1303,6 +1307,12 @@ tbody tr:hover td {
   background-color: var(--status-safe-bg);
   border: 1px solid var(--status-safe-border);
   color: var(--status-safe-text);
+}
+
+.message-info {
+  background-color: var(--status-safe-bg, rgba(29, 107, 76, 0.1));
+  border: 1px solid var(--status-safe-border, rgba(29, 107, 76, 0.3));
+  color: var(--status-safe-text, #1D6B4C);
 }
 
 
@@ -2045,42 +2055,6 @@ footer span:first-child {
   background: var(--surface-card);
   color: var(--brand-primary);
   box-shadow: var(--shadow-xs);
-}
-
-.preset-samples {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.preset-label {
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  color: var(--text-subtle);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.preset-btn {
-  background: var(--surface-subtle);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-pill);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--text-main);
-  padding: 4px 10px;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.preset-btn:hover {
-  background: var(--brand-primary-light);
-  border-color: var(--brand-primary-border);
-  color: var(--brand-primary);
-  transform: translateY(-1px);
 }
 
 .track-pane {
@@ -3363,34 +3337,60 @@ footer span:first-child {
   box-shadow: none !important;
 }
 
-/* Sample QR Test Footer */
-.sample-qr-footer {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px dashed #e2e8f0;
+/* ==========================================================================
+   QR Code Scanner Responsive Layout & Threat Inspection Overview
+   ========================================================================== */
+@media (max-width: 900px) {
+  .qr-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.qr-inspection-section {
+  width: 100%;
+  margin-top: 28px;
+}
+
+.qr-quick-status {
+  margin-top: 14px;
+}
+
+.qr-quick-status-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.75rem;
-  color: #64748b;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
 }
 
-.btn-link-sample {
-  background: transparent;
-  border: none;
-  color: #047857;
+.qr-quick-status-inner.safe {
+  border-color: var(--status-safe-border);
+  background: var(--status-safe-bg);
+  color: var(--status-safe-text);
+}
+
+.qr-quick-status-inner.malicious {
+  border-color: var(--status-malicious-border);
+  background: var(--status-malicious-bg);
+  color: var(--status-malicious-text);
+}
+
+.qr-quick-status-inner.suspicious {
+  border-color: var(--status-suspicious-border);
+  background: var(--status-suspicious-bg);
+  color: var(--status-suspicious-text);
+}
+
+.qr-quick-status-inner .btn-view-audit {
   font-weight: 600;
-  font-size: 0.75rem;
-  cursor: pointer;
-  padding: 0;
   text-decoration: underline;
-  transition: color var(--transition-fast);
-}
-
-.btn-link-sample:hover {
-  color: #065f46;
+  color: inherit;
+  font-size: 0.75rem;
+  white-space: nowrap;
 }
 
 /* ==========================================================================
@@ -4235,4 +4235,46 @@ footer span:first-child {
   color: var(--brand-primary-hover);
   text-decoration: underline;
   transform: translateX(2px);
+}
+
+/* Clean Enterprise Lucide Icon Integrations */
+.icon-inline, svg.lucide {
+  display: inline-block;
+  vertical-align: -0.15em;
+  width: 1em;
+  height: 1em;
+  stroke: currentColor;
+  stroke-width: 2;
+  fill: none;
+}
+
+.tab-icon svg.lucide, .btn-icon svg.lucide {
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: -0.2em;
+}
+
+.badge-icon svg.lucide, .engine-logo svg.lucide {
+  width: 1.25em;
+  height: 1.25em;
+  vertical-align: -0.2em;
+  color: var(--brand-primary);
+}
+
+.empty-icon svg.lucide, .no-match-icon svg.lucide {
+  width: 2.25rem;
+  height: 2.25rem;
+  color: var(--text-muted);
+}
+
+.search-magnifier svg.lucide {
+  width: 0.95rem;
+  height: 0.95rem;
+  color: var(--text-muted);
+}
+
+.badge-tag-danger {
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }

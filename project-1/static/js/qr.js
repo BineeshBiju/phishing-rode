@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2026 Jerald M Jolly, Bineesh Biju, Aston Mathew Felix, Adhul K R
+ * See LICENSE for details.
+ */
 /**
  * CYBERSPACE — Enhanced QR Code Scanner
  * Supports Dual Mode: Live Webcam Scanning (jsQR / BarcodeDetector) & File Upload
@@ -32,6 +36,7 @@ const uploadStatusEl = document.getElementById("qrStatus");
 const destInput = document.getElementById("qrDestinationInput");
 const clearDestBtn = document.getElementById("btnClearDest");
 const analyzeBtn = document.getElementById("analyzeQr");
+const quickStatusEl = document.getElementById("qrQuickStatus");
 const outEl = document.getElementById("qrResult");
 
 /**
@@ -67,15 +72,23 @@ function switchQrMode(mode) {
   currentMode = mode;
 
   if (mode === "camera") {
-    tabCamera.classList.add("active");
-    tabUpload.classList.remove("active");
-    modeCameraPanel.style.display = "block";
-    modeUploadPanel.style.display = "none";
+    if (tabCamera) {
+      tabCamera.className = "px-4 py-1.5 rounded-chip text-sm font-semibold transition-colors bg-ink text-ground cursor-pointer";
+    }
+    if (tabUpload) {
+      tabUpload.className = "px-4 py-1.5 rounded-chip text-sm font-medium transition-colors text-muted hover:text-ink cursor-pointer";
+    }
+    if (modeCameraPanel) modeCameraPanel.style.display = "flex";
+    if (modeUploadPanel) modeUploadPanel.style.display = "none";
   } else {
-    tabCamera.classList.remove("active");
-    tabUpload.classList.add("active");
-    modeCameraPanel.style.display = "none";
-    modeUploadPanel.style.display = "block";
+    if (tabCamera) {
+      tabCamera.className = "px-4 py-1.5 rounded-chip text-sm font-medium transition-colors text-muted hover:text-ink cursor-pointer";
+    }
+    if (tabUpload) {
+      tabUpload.className = "px-4 py-1.5 rounded-chip text-sm font-semibold transition-colors bg-ink text-ground cursor-pointer";
+    }
+    if (modeCameraPanel) modeCameraPanel.style.display = "none";
+    if (modeUploadPanel) modeUploadPanel.style.display = "flex";
     // Turn off live camera if leaving camera tab to save battery and camera locks
     stopCamera();
   }
@@ -140,14 +153,15 @@ async function startCamera() {
     cameraIdlePlaceholder.style.display = "none";
     scannerReticle.style.display = "flex";
     cameraToggleText.textContent = "Stop Camera";
-    cameraToggleIcon.textContent = "⏹";
+    cameraToggleIcon.innerHTML = '<i data-lucide="square" class="w-3.5 h-3.5"></i>';
+    if (window.lucide && typeof window.lucide.createIcons === "function") lucide.createIcons();
     setCameraStatus("Scanning for QR codes...", "scanning");
 
     requestAnimationFrame(scanVideoFrame);
   } catch (err) {
     console.error("Camera access error:", err);
+    stopCamera();
     setCameraStatus("Camera Error: " + err.message + ". Check browser permissions or try uploading an image.", "error");
-    isScanning = false;
   }
 }
 
@@ -179,7 +193,8 @@ function stopCamera() {
 
   if (cameraToggleBtn) {
     cameraToggleBtn.classList.remove("camera-active");
-    cameraToggleIcon.textContent = "▶";
+    cameraToggleIcon.innerHTML = '<i data-lucide="play" class="w-3.5 h-3.5"></i>';
+    if (window.lucide && typeof window.lucide.createIcons === "function") lucide.createIcons();
     cameraToggleText.textContent = "Start Camera";
   }
 }
@@ -248,12 +263,13 @@ async function scanVideoFrame() {
         }
       }
 
-      // Auto-Detect Trigger
+      // Auto-Detect Trigger: Automatically pass to live threat intelligence pipeline
       if (detectedCode) {
         playBeepTone();
         stopCamera();
         setExtractedUrl(detectedCode);
-        setCameraStatus(`✅ QR Code detected: ${detectedCode.slice(0, 40)}...`, "success");
+        setCameraStatus(`QR Code detected: ${detectedCode.slice(0, 40)}...`, "success");
+        autoInspectQr(detectedCode);
         return;
       }
     }
@@ -300,6 +316,17 @@ function handleDestinationInputChange() {
  */
 function clearExtractedDestination() {
   setExtractedUrl("");
+  if (quickStatusEl) {
+    quickStatusEl.style.display = "none";
+    quickStatusEl.innerHTML = "";
+  }
+  const rootEl = document.getElementById("qrScanResultRoot") || outEl;
+  if (window.CyberScapeReact && typeof window.CyberScapeReact.renderScanResult === "function" && rootEl) {
+    window.CyberScapeReact.renderScanResult(rootEl, { state: "idle" });
+  } else if (outEl) {
+    outEl.className = "result hidden";
+    outEl.innerHTML = "";
+  }
   if (destInput) destInput.focus();
 }
 
@@ -308,9 +335,9 @@ function clearExtractedDestination() {
  */
 function setCameraStatus(msg, type = "normal") {
   if (!cameraStatusEl) return;
-  cameraStatusEl.className = "demo-note camera-status-bar" + 
-    (type === "error" ? " note-error" : (type === "success" ? " note-success" : ""));
-  cameraStatusEl.innerHTML = `<span>${escapeHtml(msg)}</span>`;
+  cameraStatusEl.className = "text-xs font-mono pt-2 " + 
+    (type === "error" ? "text-danger" : (type === "success" ? "text-safe font-semibold" : (type === "scanning" ? "text-line/90 animate-pulse" : "text-line/60")));
+  cameraStatusEl.textContent = msg;
 }
 
 /**
@@ -318,9 +345,57 @@ function setCameraStatus(msg, type = "normal") {
  */
 function setUploadStatus(msg, type = "normal") {
   if (!uploadStatusEl) return;
-  uploadStatusEl.className = "demo-note" + 
-    (type === "error" ? " note-error" : (type === "success" ? " note-success" : ""));
+  uploadStatusEl.className = "text-xs font-mono mt-3 " + 
+    (type === "error" ? "text-danger" : (type === "success" ? "text-safe font-semibold" : "text-line/60"));
   uploadStatusEl.textContent = msg;
+}
+
+/**
+ * Render multi-QR selector pills when an image contains more than one QR code
+ */
+function renderMultipleQrPills(payloads, selected) {
+  const container = document.getElementById("multiQrContainer");
+  if (!container) return;
+
+  container.style.display = "flex";
+  container.innerHTML = "";
+
+  const label = document.createElement("span");
+  label.className = "text-[11px] font-mono text-line/80 font-semibold block w-full mb-1";
+  label.textContent = `Multiple QR Codes Found (${payloads.length}):`;
+  container.appendChild(label);
+
+  payloads.forEach((payload, idx) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    const isSel = payload === selected;
+    btn.className = `px-2.5 py-1 text-xs font-mono rounded border transition-colors cursor-pointer text-left ${
+      isSel
+        ? "bg-ground text-ink border-ground font-bold"
+        : "bg-inkSoft text-line/80 border-inkLine hover:border-line hover:text-ground"
+    }`;
+
+    let typeTag = "RAW";
+    const lower = payload.toLowerCase();
+    if (lower.startsWith("upi://")) typeTag = "UPI";
+    else if (lower.startsWith("http://") || lower.startsWith("https://")) typeTag = "URL";
+    else if (lower.startsWith("wifi:")) typeTag = "WIFI";
+    else if (lower.startsWith("smsto:") || lower.startsWith("sms:")) typeTag = "SMS";
+    else if (lower.startsWith("mailto:")) typeTag = "MAIL";
+    else if (lower.includes("vcard")) typeTag = "VCARD";
+
+    const preview = payload.length > 28 ? payload.slice(0, 28) + "..." : payload;
+    btn.textContent = `[${typeTag}] QR ${idx + 1}: ${preview}`;
+
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      setExtractedUrl(payload);
+      renderMultipleQrPills(payloads, payload);
+      autoInspectQr(payload);
+    };
+
+    container.appendChild(btn);
+  });
 }
 
 /**
@@ -328,97 +403,176 @@ function setUploadStatus(msg, type = "normal") {
  */
 async function handleQrImageFile(file) {
   if (!file) return;
-  setUploadStatus(`Reading "${file.name}" (${(file.size / 1024).toFixed(1)} KB)...`);
+
+  // Intercept unauthenticated users
+  if (window.CYBER_AUTH && !window.CYBER_AUTH.isAuthenticated) {
+    window.location.href = (window.CYBER_AUTH && window.CYBER_AUTH.loginUrl) || "/login";
+    return;
+  }
+
+  setUploadStatus(`Analyzing "${file.name}" (${(file.size / 1024).toFixed(1)} KB) with OpenCV / pyzbar engine...`);
   setExtractedUrl("");
-  if (outEl) outEl.className = "result hidden";
 
-  // Engine 1: Client-side jsQR decode via Object URL
-  const objectUrl = URL.createObjectURL(file);
-  const img = new Image();
+  const multiContainer = document.getElementById("multiQrContainer");
+  if (multiContainer) {
+    multiContainer.style.display = "none";
+    multiContainer.innerHTML = "";
+  }
 
-  img.onload = async () => {
-    let clientDecoded = null;
-    try {
-      const c = document.createElement("canvas");
-      const ctx = c.getContext("2d", { willReadFrequently: true });
-      c.width = img.naturalWidth;
-      c.height = img.naturalHeight;
-      ctx.drawImage(img, 0, 0);
-      const imgData = ctx.getImageData(0, 0, c.width, c.height);
+  const rootEl = document.getElementById("qrScanResultRoot") || outEl;
+  if (window.CyberScapeReact && typeof window.CyberScapeReact.renderScanResult === "function" && rootEl) {
+    window.CyberScapeReact.renderScanResult(rootEl, { state: "idle" });
+  } else if (outEl) {
+    outEl.className = "result hidden";
+  }
 
-      // Try BarcodeDetector
-      if ("BarcodeDetector" in window) {
+  // Use server-side OpenCV & pyzbar engine with CLAHE, Otsu thresholding, sharpening, and multi-QR detection
+  try {
+    const formData = new FormData();
+    formData.append("qr_file", file);
+
+    const res = await fetch("/decode-qr", {
+      method: "POST",
+      body: formData
+    });
+    const data = await res.json();
+
+    if (res.ok && data.success && data.data) {
+      playBeepTone();
+      setExtractedUrl(data.data);
+
+      if (data.count > 1 && Array.isArray(data.all_payloads)) {
+        setUploadStatus(`Detected ${data.count} QR codes in this image (${data.engine}). Analyzing primary code.`, "success");
+        renderMultipleQrPills(data.all_payloads, data.data);
+      } else {
+        const typeLabel = data.payload_type || "Payload";
+        setUploadStatus(`QR code decoded [${typeLabel}] via ${data.engine}: ${data.data.slice(0, 45)}...`, "success");
+      }
+      autoInspectQr(data.data);
+    } else {
+      // Fallback: Try client-side canvas decode if server returned no QR
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
         try {
-          const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
-          const barcodes = await detector.detect(c);
-          if (barcodes.length > 0 && barcodes[0].rawValue) {
-            clientDecoded = barcodes[0].rawValue.trim();
+          const c = document.createElement("canvas");
+          const ctx = c.getContext("2d", { willReadFrequently: true });
+          c.width = img.naturalWidth;
+          c.height = img.naturalHeight;
+          ctx.drawImage(img, 0, 0);
+          const imgData = ctx.getImageData(0, 0, c.width, c.height);
+          if (window.jsQR) {
+            const qr = window.jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "attemptBoth" });
+            if (qr && qr.data) {
+              playBeepTone();
+              setExtractedUrl(qr.data);
+              setUploadStatus(`QR code decoded via client fallback: ${qr.data.slice(0, 45)}...`, "success");
+              autoInspectQr(qr.data);
+              URL.revokeObjectURL(objectUrl);
+              return;
+            }
           }
         } catch (e) {}
-      }
-
-      // Try jsQR fallback
-      if (!clientDecoded && window.jsQR) {
-        const code = window.jsQR(imgData.data, imgData.width, imgData.height, {
-          inversionAttempts: "dontInvert"
-        });
-        if (code && code.data) {
-          clientDecoded = code.data.trim();
-        }
-      }
-    } catch (err) {
-      console.warn("Client-side image processing notice:", err);
+        URL.revokeObjectURL(objectUrl);
+        setUploadStatus(data.error || "Could not detect a valid QR code in this image. Try another image.", "error");
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        setUploadStatus(data.error || "Could not decode QR code.", "error");
+      };
+      img.src = objectUrl;
     }
-
-    URL.revokeObjectURL(objectUrl);
-
-    if (clientDecoded) {
-      playBeepTone();
-      setExtractedUrl(clientDecoded);
-      setUploadStatus(`QR code extracted successfully from "${file.name}".`, "success");
-      return;
-    }
-
-    // Engine 2: Server-side OpenCV / pyzbar fallback API
-    setUploadStatus("Processing with server-side QR engine...");
-    try {
-      const formData = new FormData();
-      formData.append("qr_file", file);
-
-      const res = await fetch("/decode-qr", {
-        method: "POST",
-        body: formData
-      });
-      const data = await res.json();
-      if (res.ok && data.success && data.data) {
-        playBeepTone();
-        setExtractedUrl(data.data);
-        setUploadStatus(`QR code decoded via server engine: ${data.data.slice(0, 45)}...`, "success");
-      } else {
-        setUploadStatus(data.error || "Could not detect a valid QR code in this image. Try another image or sample.", "error");
-      }
-    } catch (err) {
-      setUploadStatus("Decoding service error: " + err.message, "error");
-    }
-  };
-
-  img.onerror = () => {
-    URL.revokeObjectURL(objectUrl);
-    setUploadStatus("Failed to load image file format.", "error");
-  };
-
-  img.src = objectUrl;
+  } catch (err) {
+    setUploadStatus("Decoding service error: " + err.message, "error");
+  }
 }
 
 /**
- * Load Sample QR Test (One-click demonstration)
+ * Automatically pass decoded QR destination to the live threat intelligence pipeline
  */
-function loadSampleQrTest() {
-  playBeepTone();
-  setExtractedUrl("https://example.com/qr-destination");
-  setCameraStatus("Sample QR destination loaded for testing.", "success");
-  if (currentMode === "upload") {
-    setUploadStatus("Loaded sample: https://example.com/qr-destination", "success");
+async function autoInspectQr(destinationUrl) {
+  let url = (destinationUrl || "").trim();
+  if (!url) return;
+
+  const qrRoot = document.getElementById("qrScanResultRoot") || outEl;
+
+  // Intercept unauthenticated users
+  if (window.CYBER_AUTH && !window.CYBER_AUTH.isAuthenticated) {
+    window.location.href = (window.CYBER_AUTH && window.CYBER_AUTH.loginUrl) || "/login";
+    return;
+  }
+
+  // Auto-prefix https:// only if it looks like a standard web domain without protocol
+  if (!/^[a-zA-Z0-9+.-]+:\/\//i.test(url) && !/^(wifi:|smsto:|sms:|mailto:|begin:vcard|mecard:)/i.test(url)) {
+    if (/^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(\/.*)?$/i.test(url)) {
+      url = "https://" + url;
+      setExtractedUrl(url);
+    }
+  }
+
+  if (analyzeBtn) analyzeBtn.disabled = true;
+
+  // IMMEDIATELY clear previous report and show full-width skeleton
+  if (window.CyberScapeReact && typeof window.CyberScapeReact.renderScanResult === "function" && qrRoot) {
+    window.CyberScapeReact.renderScanResult(qrRoot, {
+      state: "loading",
+      url: url
+    });
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+  try {
+    const res = await fetch("/qr-result", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
+      body: JSON.stringify({ url }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      let errMsg = "QR threat inspection failed.";
+      try {
+        const errJson = await res.json();
+        errMsg = errJson.error || errMsg;
+      } catch (e) {}
+      throw new Error(errMsg);
+    }
+
+    const data = await res.json();
+
+    // Render full-width rectangular ScanResultPanel
+    if (window.CyberScapeReact && typeof window.CyberScapeReact.renderScanResult === "function" && qrRoot) {
+      window.CyberScapeReact.renderScanResult(qrRoot, {
+        state: "success",
+        report: data,
+        onScanAnother: () => clearExtractedDestination()
+      });
+    }
+  } catch (err) {
+    clearTimeout(timeoutId);
+    const isTimeout = err.name === "AbortError";
+    const displayMsg = isTimeout
+      ? "Inspection timed out after 20 seconds: The destination host or threat feeds took too long to reply. Please check your network connection and retry."
+      : (err.message || "An unexpected error occurred during verification.");
+
+    if (window.CyberScapeReact && typeof window.CyberScapeReact.renderScanResult === "function" && qrRoot) {
+      window.CyberScapeReact.renderScanResult(qrRoot, {
+        state: "error",
+        error: displayMsg,
+        url: url,
+        onRetry: () => autoInspectQr(url),
+        onScanAnother: () => clearExtractedDestination()
+      });
+    }
+  } finally {
+    if (analyzeBtn) analyzeBtn.disabled = false;
   }
 }
 
@@ -460,42 +614,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Check Destination Primary Action Button
   if (analyzeBtn) {
-    analyzeBtn.addEventListener("click", async () => {
-      if (!extractedUrl) return;
-
-      // Intercept unauthenticated users
-      if (window.CYBER_AUTH && !window.CYBER_AUTH.isAuthenticated) {
-        window.location.href = (window.CYBER_AUTH && window.CYBER_AUTH.loginUrl) || "/login";
-        return;
-      }
-
-      analyzeBtn.disabled = true;
-      if (outEl) {
-        outEl.className = "result";
-        outEl.innerHTML = '<div class="loading-state"><span class="pulse-indicator"></span> Running deep threat inspection & redirect tracing on QR destination...</div>';
-      }
-
-      try {
-        const res = await fetch("/qr-result", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: extractedUrl })
-        });
-        const data = await res.json();
-        analyzeBtn.disabled = false;
-        if (res.ok && outEl) {
-          renderResult(data, outEl);
-        } else if (outEl) {
-          outEl.className = "result malicious";
-          outEl.textContent = data.error || "Analysis failed.";
-        }
-      } catch (err) {
-        analyzeBtn.disabled = false;
-        if (outEl) {
-          outEl.className = "result malicious";
-          outEl.textContent = "Inspection error: " + err.message;
-        }
-      }
+    analyzeBtn.addEventListener("click", () => {
+      autoInspectQr(extractedUrl);
     });
   }
 });
